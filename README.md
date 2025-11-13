@@ -1,4 +1,4 @@
-# Sari-Sari Store
+# Janet's Sari Sari
 
 A modern, mobile-responsive sari-sari store management system built with React and Tailwind CSS. Features product browsing, shopping cart, voice search, and price editing capabilities.
 
