@@ -74,9 +74,15 @@ function App() {
       <Navigation
         selectedCategory={selectedCategory}
         onCategoryChange={setSelectedCategory}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
       />
-      <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} />
-      <ProductList products={filteredProducts} onAddToCart={handleAddToCart} onUpdatePrice={handleUpdatePrice} />
+      <ProductList 
+        products={filteredProducts} 
+        selectedCategory={selectedCategory}
+        onAddToCart={handleAddToCart} 
+        onUpdatePrice={handleUpdatePrice} 
+      />
       <Cart
         cart={cart}
         onRemoveItem={handleRemoveItem}
