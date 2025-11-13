@@ -1,26 +1,66 @@
-# Project Title
+# Mami Project
 
-## Description
-
-Add your project description here.
+A React application built with Vite and Tailwind CSS.
 
 ## Getting Started
 
 ### Prerequisites
 
-- List any prerequisites here
+- Node.js (v16 or higher)
+- npm or yarn
 
 ### Installation
 
-1. Step 1
-2. Step 2
-3. Step 3
+Dependencies are already installed. If you need to reinstall:
 
-## Usage
+```bash
+npm install
+```
 
-Describe how to use your project here.
+### Development
 
-## License
+To start the development server:
 
-Add license information here.
+```bash
+npm run dev
+```
+
+The application will be available at `http://localhost:5173`
+
+### Build
+
+To create a production build:
+
+```bash
+npm run build
+```
+
+### Preview
+
+To preview the production build:
+
+```bash
+npm run preview
+```
+
+## Tech Stack
+
+- **React** - UI library
+- **Vite** - Build tool and dev server
+- **Tailwind CSS** - Utility-first CSS framework
+- **ESLint** - Code linting
+
+## Project Structure
+
+```
+mami/
+├── src/
+│   ├── App.jsx       # Main App component
+│   ├── main.jsx      # Application entry point
+│   └── index.css     # Global styles with Tailwind directives
+├── index.html        # HTML template
+├── vite.config.js    # Vite configuration
+├── tailwind.config.js # Tailwind CSS configuration
+└── postcss.config.js  # PostCSS configuration
+```
 
