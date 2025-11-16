@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 function ProductCard({ product, onAddToCart, onUpdatePrice }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editPrice, setEditPrice] = useState(product.price.toString());
+  const [imageError, setImageError] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
     if (!isEditing) {
@@ -36,44 +38,62 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
   const categoryColor = categoryColors[product.category] || 'bg-gray-100 text-gray-700 border-gray-200';
 
   return (
-    <div className="group bg-white rounded-2xl shadow-md hover:shadow-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-2 border border-gray-100 relative overflow-hidden">
+    <div className="group bg-white rounded-lg shadow-md hover:shadow-lg p-2.5 flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 border border-gray-100 relative overflow-hidden">
       {/* Decorative gradient overlay on hover */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/0 to-emerald-50/0 group-hover:from-emerald-50/50 group-hover:to-transparent transition-all duration-300 pointer-events-none rounded-2xl"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/0 to-emerald-50/0 group-hover:from-emerald-50/50 group-hover:to-transparent transition-all duration-300 pointer-events-none rounded-lg"></div>
       
       {/* Edit Button - Only show when not editing */}
       {!isEditing && (
         <button
           onClick={() => setIsEditing(true)}
-          className="absolute top-3 right-3 p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-200 z-10 shadow-sm hover:shadow-md"
+          className="absolute top-1.5 right-1.5 p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-all duration-200 z-10 shadow-sm hover:shadow-md"
           title="Edit price"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
         </button>
       )}
 
-      <div className="flex-1 mb-5 relative z-10">
-        {/* Category Badge */}
-        <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3 border ${categoryColor}`}>
-          {product.category}
+      <div className="flex-1 mb-2 relative z-10">
+        {/* Product Image */}
+        <div className="mb-2 rounded-md overflow-hidden bg-gradient-to-br from-emerald-100 to-emerald-200 aspect-square flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-inner min-h-[120px] relative">
+          {!imageError && product.image ? (
+            <img 
+              src={product.image}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-200 to-emerald-300">
+              <span className="text-gray-700 text-xs font-bold text-center px-2">
+                {product.name}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Product Name */}
-        <h3 className="text-xl font-extrabold text-gray-900 mb-4 leading-tight group-hover:text-emerald-700 transition-colors">
-          {product.name}
-        </h3>
+        {/* Product Name and Category on Same Line */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h3 className="text-sm font-bold text-gray-900 leading-tight group-hover:text-emerald-700 transition-colors flex-1 truncate">
+            {product.name}
+          </h3>
+          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border flex-shrink-0 ${categoryColor}`}>
+            {product.category}
+          </span>
+        </div>
         
         {isEditing ? (
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-600 mb-2">Edit Price</label>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-2xl font-bold text-emerald-600">₱</span>
+          <div className="mb-2">
+            <label className="block text-[9px] font-semibold text-gray-600 mb-1">Edit Price</label>
+            <div className="flex items-center gap-1 mb-1.5">
+              <span className="text-base font-bold text-emerald-600">₱</span>
               <input
                 type="number"
                 value={editPrice}
                 onChange={(e) => setEditPrice(e.target.value)}
-                className="flex-1 px-3 py-2.5 border-2 border-emerald-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 bg-white text-xl font-bold text-emerald-600 w-full transition-all"
+                className="flex-1 px-1.5 py-1 border-2 border-emerald-400 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 bg-white text-base font-bold text-emerald-600 w-full transition-all"
                 min="0"
                 step="0.01"
                 autoFocus
@@ -83,25 +103,25 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
                 }}
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <button
                 onClick={handleSavePrice}
-                className="flex-1 bg-emerald-500 text-white py-2.5 px-3 rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-md hover:shadow-lg active:scale-95"
+                className="flex-1 bg-emerald-500 text-white py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-emerald-600 transition-all shadow-md hover:shadow-lg active:scale-95"
               >
                 Save
               </button>
               <button
                 onClick={handleCancelEdit}
-                className="flex-1 bg-gray-200 text-gray-700 py-2.5 px-3 rounded-xl text-sm font-bold hover:bg-gray-300 transition-all shadow-md hover:shadow-lg active:scale-95"
+                className="flex-1 bg-gray-200 text-gray-700 py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-gray-300 transition-all shadow-md hover:shadow-lg active:scale-95"
               >
                 Cancel
               </button>
             </div>
           </div>
         ) : (
-          <div className="mb-4">
-            <p className="text-xs text-gray-500 font-medium mb-1">Price</p>
-            <p className="text-4xl font-black text-emerald-600 leading-none">
+          <div className="mb-2">
+            <p className="text-[9px] text-gray-500 font-medium mb-0.5">Price</p>
+            <p className="text-xl font-black text-emerald-600 leading-none">
               ₱{product.price.toFixed(2)}
             </p>
           </div>
@@ -110,12 +130,31 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
 
       {/* Add to Cart Button */}
       <button
-        onClick={() => onAddToCart(product)}
-        className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 px-4 rounded-xl font-bold hover:from-emerald-600 hover:to-emerald-700 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl relative z-10 group/btn"
-        disabled={isEditing}
+        onClick={() => {
+          setIsAdding(true);
+          onAddToCart(product);
+          setTimeout(() => setIsAdding(false), 600);
+        }}
+        className={`w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-2 px-2 rounded-md font-bold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg relative z-10 group/btn text-xs overflow-hidden ${
+          isAdding ? 'scale-95' : 'active:scale-95'
+        }`}
+        disabled={isEditing || isAdding}
       >
-        <span className="text-2xl font-bold group-hover/btn:scale-110 transition-transform">+</span>
-        <span className="text-base">Add to Cart</span>
+        {isAdding ? (
+          <>
+            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Adding...</span>
+          </>
+        ) : (
+          <>
+            <span className="text-base font-bold group-hover/btn:scale-110 transition-transform">+</span>
+            <span>Add to Cart</span>
+            <span className="absolute inset-0 bg-white opacity-0 group-hover/btn:opacity-20 transition-opacity duration-200"></span>
+          </>
+        )}
       </button>
     </div>
   );
