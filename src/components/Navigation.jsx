@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchChange }) {
+function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchChange, cart, onToggleCart }) {
   const categories = ['All', 'Snacks', 'Drinks', 'Condiments', 'Biscuits', 'Candies', 'Canned Goods', 'Noodles'];
   const [isListening, setIsListening] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -72,19 +72,26 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
     }
   };
 
+  const cartItemCount = cart ? cart.reduce((sum, item) => sum + item.quantity, 0) : 0;
+
   return (
     <nav className="bg-green-800 text-white shadow-lg sticky top-0 z-50">
       <div className="container mx-auto px-4 py-2 md:py-4">
-        <h1 className="text-2xl md:text-5xl font-bold mb-2 md:mb-4 text-center">🛒 Janet's Sari Sari</h1>
+        {/* Mobile: Title on top */}
+        <h1 className="text-xl font-bold italic mb-2 text-center md:hidden">🛒 Janet's Sari Sari</h1>
         
-        <div className="flex flex-row gap-2 md:gap-3 items-center justify-center">
-          {/* Category Dropdown */}
-          <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
-            <label className="text-white font-semibold text-sm md:text-lg whitespace-nowrap hidden sm:inline">Categories:</label>
+        {/* Desktop and Mobile Navigation - All on same line */}
+        <div className="flex flex-row items-center gap-2 md:gap-3">
+          {/* Desktop: Title on left */}
+          <h1 className="hidden md:block text-xl lg:text-2xl font-bold italic whitespace-nowrap flex-shrink-0">🛒 Janet's Sari Sari</h1>
+          
+          {/* Category Dropdown - Mobile Only */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 md:hidden">
+            <label className="text-white font-semibold text-sm whitespace-nowrap">Categories:</label>
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="px-4 py-2 md:px-6 md:py-3 bg-green-700 hover:bg-green-600 text-white rounded-lg font-semibold text-sm md:text-lg min-w-[100px] md:min-w-[150px] flex items-center justify-between gap-2 transition-all"
+                className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg font-semibold text-sm min-w-[100px] flex items-center justify-between gap-2 transition-all"
               >
                 <span>{selectedCategory}</span>
                 <svg
@@ -120,9 +127,9 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="flex-1 max-w-2xl w-full flex gap-1.5 md:gap-2">
-            <div className="flex-1 relative">
+          {/* Search Bar - Centered */}
+          <div className="flex-1 flex justify-center items-center gap-1.5 md:gap-2">
+            <div className="flex-1 max-w-md relative">
               <input
                 type="text"
                 placeholder="Search products..."
@@ -171,6 +178,24 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
               Search
             </button>
           </div>
+
+          {/* Cart Button */}
+          {onToggleCart && (
+            <button
+              onClick={onToggleCart}
+              className="px-4 py-2 md:px-6 md:py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold text-sm md:text-base transition-colors whitespace-nowrap flex items-center gap-2 relative flex-shrink-0"
+            >
+              <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="hidden sm:inline">Cart</span>
+              {cartItemCount > 0 && (
+                <span className="bg-white text-red-600 text-xs md:text-sm font-bold rounded-full px-2 py-0.5 min-w-[1.5rem] flex items-center justify-center">
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </nav>

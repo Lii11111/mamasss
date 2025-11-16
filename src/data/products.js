@@ -21,6 +21,10 @@ export const products = [
   { id: 15, name: 'Mang Tomas', price: 35, category: 'Condiments' },
   { id: 16, name: 'Jufran Banana Ketchup', price: 30, category: 'Condiments' },
   { id: 17, name: 'Knorr Seasoning', price: 5, category: 'Condiments' },
+  { id: 39, name: 'Bawang', price: 8, category: 'Condiments' },
+  { id: 40, name: 'Sibuyas', price: 8, category: 'Condiments' },
+  { id: 41, name: 'Vetsin', price: 5, category: 'Condiments' },
+  { id: 42, name: 'Magic Sarap', price: 6, category: 'Condiments' },
   
   // Biscuits
   { id: 18, name: 'Rebisco', price: 12, category: 'Biscuits' },

@@ -3,10 +3,30 @@ import Navigation from './components/Navigation';
 import SearchBar from './components/SearchBar';
 import ProductList from './components/ProductList';
 import Cart from './components/Cart';
-import { products as initialProducts } from './data/products';
+import CategorySidebar from './components/CategorySidebar';
+import { products as initialProducts, categories } from './data/products';
+
+const STORAGE_KEY = 'janet-sari-sari-product-prices';
 
 function App() {
-  const [products, setProducts] = useState(initialProducts);
+  // Load saved prices from localStorage on mount
+  const [products, setProducts] = useState(() => {
+    const savedPrices = localStorage.getItem(STORAGE_KEY);
+    if (savedPrices) {
+      try {
+        const priceMap = JSON.parse(savedPrices);
+        return initialProducts.map(product => ({
+          ...product,
+          price: priceMap[product.id] !== undefined ? priceMap[product.id] : product.price
+        }));
+      } catch (error) {
+        console.error('Error loading saved prices:', error);
+        return initialProducts;
+      }
+    }
+    return initialProducts;
+  });
+  
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState([]);
@@ -56,15 +76,31 @@ function App() {
 
   // Update product price
   const handleUpdatePrice = (productId, newPrice) => {
-    setProducts((prevProducts) =>
-      prevProducts.map((product) =>
-        product.id === productId ? { ...product, price: parseFloat(newPrice) } : product
-      )
-    );
+    const updatedPrice = parseFloat(newPrice);
+    
+    setProducts((prevProducts) => {
+      const updatedProducts = prevProducts.map((product) =>
+        product.id === productId ? { ...product, price: updatedPrice } : product
+      );
+      
+      // Save to localStorage
+      const priceMap = {};
+      updatedProducts.forEach(product => {
+        // Only save prices that differ from initial prices
+        const initialProduct = initialProducts.find(p => p.id === product.id);
+        if (initialProduct && product.price !== initialProduct.price) {
+          priceMap[product.id] = product.price;
+        }
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(priceMap));
+      
+      return updatedProducts;
+    });
+    
     // Also update price in cart if item exists
     setCart((prevCart) =>
       prevCart.map((item) =>
-        item.id === productId ? { ...item, price: parseFloat(newPrice) } : item
+        item.id === productId ? { ...item, price: updatedPrice } : item
       )
     );
   };
@@ -76,13 +112,26 @@ function App() {
         onCategoryChange={setSelectedCategory}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
+        cart={cart}
+        onToggleCart={() => setIsCartOpen(!isCartOpen)}
       />
-      <ProductList 
-        products={filteredProducts} 
-        selectedCategory={selectedCategory}
-        onAddToCart={handleAddToCart} 
-        onUpdatePrice={handleUpdatePrice} 
-      />
+      <div className="flex">
+        {/* Category Sidebar - Desktop Only */}
+        <CategorySidebar
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onCategoryChange={setSelectedCategory}
+        />
+        {/* Main Content - Adjusted for sidebar on desktop */}
+        <main className="flex-1 md:ml-64">
+          <ProductList 
+            products={filteredProducts} 
+            selectedCategory={selectedCategory}
+            onAddToCart={handleAddToCart} 
+            onUpdatePrice={handleUpdatePrice} 
+          />
+        </main>
+      </div>
       <Cart
         cart={cart}
         onRemoveItem={handleRemoveItem}

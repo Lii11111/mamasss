@@ -23,12 +23,19 @@ function ProductList({ products, selectedCategory, onAddToCart, onUpdatePrice })
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Category Title */}
-      <div className="px-4 md:px-6 pt-6 pb-4">
-        <h2 className="text-4xl md:text-5xl font-black text-black uppercase tracking-wide text-center flex items-center justify-center gap-3">
-          <span className="text-5xl md:text-6xl">{categoryIcons[selectedCategory] || '📦'}</span>
-          <span>{selectedCategory}</span>
-        </h2>
+      {/* Category Title with Glassmorphism Container */}
+      <div className="px-4 md:px-6 pt-6 pb-4 flex justify-center">
+        <div className="relative inline-block">
+          {/* Glassmorphism Container */}
+          <div className="backdrop-blur-xl bg-gradient-to-br from-emerald-50/80 via-white/70 to-emerald-50/80 border border-emerald-200/30 rounded-3xl px-8 md:px-12 py-4 md:py-6 shadow-2xl shadow-emerald-200/20">
+            <h2 className="text-4xl md:text-5xl font-black text-gray-900 uppercase tracking-wide flex items-center justify-center gap-3">
+              <span className="text-5xl md:text-6xl">{categoryIcons[selectedCategory] || '📦'}</span>
+              <span>{selectedCategory}</span>
+            </h2>
+          </div>
+          {/* Subtle glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-300/30 via-emerald-200/20 to-emerald-300/30 rounded-3xl blur-xl -z-10"></div>
+        </div>
       </div>
       
       {/* Product Grid */}
