@@ -57,9 +57,9 @@ const getProductImage = (name, category) => {
 
 export const products = [
   // Snacks
-  { id: 1, name: 'Chippy', price: 10, category: 'Snacks', image: getProductImage('Chippy', 'chips') },
-  { id: 2, name: 'Piattos', price: 15, category: 'Snacks', image: getProductImage('Piattos', 'chips') },
-  { id: 3, name: 'Nova', price: 12, category: 'Snacks', image: getProductImage('Nova', 'chips') },
+  { id: 1, name: 'Chippy', price: 10, category: 'Snacks', image: '/images/chippy.jpg' },
+  { id: 2, name: 'Piattos', price: 15, category: 'Snacks', image: '/images/piattos.png' },
+  { id: 3, name: 'Nova', price: 12, category: 'Snacks', image: '/images/nova.jpg' },
   { id: 4, name: 'Oishi', price: 8, category: 'Snacks', image: getProductImage('Oishi', 'chips') },
   { id: 5, name: 'Clover Chips', price: 20, category: 'Snacks', image: getProductImage('Clover Chips', 'chips') },
   
