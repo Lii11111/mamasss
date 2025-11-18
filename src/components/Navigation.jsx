@@ -179,11 +179,11 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
             </button>
           </div>
 
-          {/* Cart Button */}
+          {/* Cart Button - Hidden on mobile, visible on desktop */}
           {onToggleCart && (
             <button
               onClick={onToggleCart}
-              className="px-4 py-2 md:px-6 md:py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold text-sm md:text-base transition-colors whitespace-nowrap flex items-center gap-2 relative flex-shrink-0"
+              className="hidden md:flex px-4 py-2 md:px-6 md:py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold text-sm md:text-base transition-colors whitespace-nowrap items-center gap-2 relative flex-shrink-0"
             >
               <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
