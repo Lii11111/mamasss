@@ -1,20 +1,14 @@
 import { useState, useEffect } from 'react';
 import DeleteConfirmModal from './DeleteConfirmModal';
+import EditProductModal from './EditProductModal';
 
-function ProductCard({ product, onAddToCart, onUpdatePrice, onDeleteProduct }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editPrice, setEditPrice] = useState(product.price.toString());
+function ProductCard({ product, onAddToCart, onUpdatePrice, onUpdateProduct, onDeleteProduct, categories }) {
   const [imageError, setImageError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [currentImageSrc, setCurrentImageSrc] = useState(product.image);
   const [triedPaths, setTriedPaths] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setEditPrice(product.price.toString());
-    }
-  }, [product.price, isEditing]);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     // Reset image state when product changes
@@ -56,17 +50,19 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onDeleteProduct }) {
     }
   };
 
-  const handleSavePrice = () => {
-    const newPrice = parseFloat(editPrice);
-    if (!isNaN(newPrice) && newPrice > 0) {
-      onUpdatePrice(product.id, newPrice);
-      setIsEditing(false);
+  const handleSaveEdit = (productData) => {
+    // If name or category changed, use onUpdateProduct
+    if (productData.name !== product.name || productData.category !== product.category) {
+      if (onUpdateProduct) {
+        onUpdateProduct(product.id, productData);
+      } else {
+        // Fallback to just updating price if onUpdateProduct not available
+        onUpdatePrice(product.id, productData.price);
+      }
+    } else {
+      // Only price changed
+      onUpdatePrice(product.id, productData.price);
     }
-  };
-
-  const handleCancelEdit = () => {
-    setEditPrice(product.price.toString());
-    setIsEditing(false);
   };
 
   const categoryColors = {
@@ -87,18 +83,16 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onDeleteProduct }) {
       {/* Decorative gradient overlay on hover */}
       <div className="absolute inset-0 bg-gradient-to-br from-gray-50/0 to-gray-50/0 group-hover:from-gray-50/50 group-hover:to-transparent transition-all duration-300 pointer-events-none rounded-lg"></div>
       
-      {/* Edit Button - Only show when not editing */}
-      {!isEditing && (
-        <button
-          onClick={() => setIsEditing(true)}
-          className="absolute top-2 right-2 p-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg transition-all duration-200 z-20 shadow-lg hover:shadow-xl border-2 border-emerald-600 hover:scale-110"
-          title="Edit price"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-        </button>
-      )}
+      {/* Edit Button */}
+      <button
+        onClick={() => setShowEditModal(true)}
+        className="absolute top-2 right-2 p-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg transition-all duration-200 z-20 shadow-lg hover:shadow-xl border-2 border-emerald-600 hover:scale-110"
+        title="Edit product"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      </button>
 
       <div className="flex-1 mb-2 relative z-10">
         {/* Product Image */}
@@ -129,61 +123,12 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onDeleteProduct }) {
           </span>
         </div>
         
-        {isEditing ? (
-          <div className="mb-2">
-            <label className="block text-[9px] font-semibold text-gray-600 mb-1">Edit Price</label>
-            <div className="flex items-center gap-1 mb-1.5">
-              <span className="text-base font-bold text-emerald-600">₱</span>
-              <input
-                type="number"
-                value={editPrice}
-                onChange={(e) => setEditPrice(e.target.value)}
-                className="flex-1 px-1.5 py-1 border-2 border-emerald-400 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 bg-white text-base font-bold text-emerald-600 w-full transition-all"
-                min="0"
-                step="0.01"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSavePrice();
-                  if (e.key === 'Escape') handleCancelEdit();
-                }}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex gap-1">
-                <button
-                  onClick={handleSavePrice}
-                  className="flex-1 bg-emerald-500 text-white py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-emerald-600 transition-all shadow-md hover:shadow-lg active:scale-95"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  className="flex-1 bg-gray-200 text-gray-700 py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-gray-300 transition-all shadow-md hover:shadow-lg active:scale-95"
-                >
-                  Cancel
-                </button>
-              </div>
-              {onDeleteProduct && (
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="w-full bg-red-500 text-white py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-red-600 transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-1"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete Product
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="mb-2">
-            <p className="text-[9px] text-gray-500 font-medium mb-0.5">Price</p>
-            <p className="text-xl font-black text-emerald-600 leading-none">
-              ₱{product.price.toFixed(2)}
-            </p>
-          </div>
-        )}
+        <div className="mb-2">
+          <p className="text-[9px] text-gray-500 font-medium mb-0.5">Price</p>
+          <p className="text-xl font-black text-emerald-600 leading-none">
+            ₱{product.price.toFixed(2)}
+          </p>
+        </div>
       </div>
 
       {/* Add to Cart Button */}
@@ -196,7 +141,7 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onDeleteProduct }) {
         className={`w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-2 px-2 rounded-md font-bold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg relative z-10 group/btn text-xs overflow-hidden ${
           isAdding ? 'scale-95' : 'active:scale-95'
         }`}
-        disabled={isEditing || isAdding}
+        disabled={isAdding}
       >
         {isAdding ? (
           <>
@@ -216,17 +161,23 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onDeleteProduct }) {
       </button>
     </div>
     
+    {/* Edit Product Modal */}
+    <EditProductModal
+      isOpen={showEditModal}
+      onClose={() => setShowEditModal(false)}
+      onSave={handleSaveEdit}
+      onDelete={onDeleteProduct}
+      product={product}
+      categories={categories}
+    />
+    
     {/* Delete Confirmation Modal - Outside card container */}
     <DeleteConfirmModal
       isOpen={showDeleteModal}
-      onClose={() => {
-        setShowDeleteModal(false);
-        setIsEditing(false);
-      }}
+      onClose={() => setShowDeleteModal(false)}
       onConfirm={() => {
         onDeleteProduct(product.id);
         setShowDeleteModal(false);
-        setIsEditing(false);
       }}
       productName={product.name}
     />

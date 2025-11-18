@@ -1,6 +1,6 @@
 import ProductCard from './ProductCard';
 
-function ProductList({ products, selectedCategory, onAddToCart, onUpdatePrice, onDeleteProduct, onAddProductClick }) {
+function ProductList({ products, selectedCategory, onAddToCart, onUpdatePrice, onUpdateProduct, onDeleteProduct, onAddProductClick, categories }) {
   // Category icons mapping
   const categoryIcons = {
     'All': '📦',
@@ -64,7 +64,9 @@ function ProductList({ products, selectedCategory, onAddToCart, onUpdatePrice, o
             product={product} 
             onAddToCart={onAddToCart} 
             onUpdatePrice={onUpdatePrice}
+            onUpdateProduct={onUpdateProduct}
             onDeleteProduct={onDeleteProduct}
+            categories={categories}
           />
         ))}
       </div>
