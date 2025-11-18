@@ -5,12 +5,54 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
   const [editPrice, setEditPrice] = useState(product.price.toString());
   const [imageError, setImageError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [currentImageSrc, setCurrentImageSrc] = useState(product.image);
+  const [triedPaths, setTriedPaths] = useState([]);
 
   useEffect(() => {
     if (!isEditing) {
       setEditPrice(product.price.toString());
     }
   }, [product.price, isEditing]);
+
+  useEffect(() => {
+    // Reset image state when product changes
+    setImageError(false);
+    setCurrentImageSrc(product.image);
+    setTriedPaths([product.image]);
+  }, [product.image]);
+
+  // Helper to try different extensions when image fails (first word only)
+  const tryAlternativeExtension = (imagePath) => {
+    if (!imagePath || imagePath.startsWith('http')) return null; // Skip URLs and invalid paths
+    
+    const extensions = ['jpg', 'jpeg', 'png', 'webp'];
+    const pathWithoutExt = imagePath.replace(/\.(jpg|jpeg|png|webp)$/i, '');
+    const currentExt = imagePath.match(/\.(jpg|jpeg|png|webp)$/i)?.[1]?.toLowerCase();
+    
+    // Try other extensions (filename stays the same - first word only)
+    for (const ext of extensions) {
+      if (ext !== currentExt) {
+        const newPath = `${pathWithoutExt}.${ext}`;
+        if (!triedPaths.includes(newPath)) {
+          setTriedPaths(prev => [...prev, imagePath, newPath]);
+          return newPath;
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  const handleImageError = () => {
+    const alternativePath = tryAlternativeExtension(currentImageSrc);
+    if (alternativePath) {
+      // Try the alternative extension
+      setCurrentImageSrc(alternativePath);
+    } else {
+      // No more alternatives, show placeholder
+      setImageError(true);
+    }
+  };
 
   const handleSavePrice = () => {
     const newPrice = parseFloat(editPrice);
@@ -40,7 +82,7 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
   return (
     <div className="group bg-white rounded-lg shadow-md hover:shadow-lg p-2.5 flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 border border-gray-100 relative overflow-hidden">
       {/* Decorative gradient overlay on hover */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/0 to-emerald-50/0 group-hover:from-emerald-50/50 group-hover:to-transparent transition-all duration-300 pointer-events-none rounded-lg"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-50/0 to-gray-50/0 group-hover:from-gray-50/50 group-hover:to-transparent transition-all duration-300 pointer-events-none rounded-lg"></div>
       
       {/* Edit Button - Only show when not editing */}
       {!isEditing && (
@@ -57,16 +99,16 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
 
       <div className="flex-1 mb-2 relative z-10">
         {/* Product Image */}
-        <div className="mb-2 rounded-md overflow-hidden bg-gradient-to-br from-emerald-100 to-emerald-200 aspect-square flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-inner min-h-[120px] relative">
-          {!imageError && product.image ? (
+        <div className="mb-2 rounded-md overflow-hidden bg-transparent aspect-square flex items-center justify-center group-hover:scale-105 transition-transform duration-300 min-h-[120px] relative">
+          {!imageError && currentImageSrc ? (
             <img 
-              src={product.image}
+              src={currentImageSrc}
               alt={product.name}
               className="w-full h-full object-cover"
-              onError={() => setImageError(true)}
+              onError={handleImageError}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-200 to-emerald-300">
+            <div className="w-full h-full flex items-center justify-center bg-gray-100">
               <span className="text-gray-700 text-xs font-bold text-center px-2">
                 {product.name}
               </span>

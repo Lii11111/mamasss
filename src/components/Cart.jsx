@@ -1,5 +1,100 @@
+import { useState, useEffect } from 'react';
+
 function Cart({ cart, onRemoveItem, onUpdateQuantity, isOpen, onToggle }) {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
+  // Track image sources and tried paths for each cart item
+  const [imageSources, setImageSources] = useState({});
+  const [triedPaths, setTriedPaths] = useState({});
+  
+  // Helper to get first word from product name
+  const getFirstWord = (productName) => {
+    return productName.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .split(/\s+/)[0];
+  };
+  
+  // Initialize image sources when cart changes - prioritize first-word path
+  useEffect(() => {
+    const newSources = {};
+    const newTriedPaths = {};
+    cart.forEach(item => {
+      if (item.name) {
+        const firstWord = getFirstWord(item.name);
+        // Start with first-word path (most likely to work with new naming system)
+        const initialPath = `/images/${firstWord}.jpg`;
+        newSources[item.id] = initialPath;
+        newTriedPaths[item.id] = [initialPath];
+      }
+    });
+    setImageSources(prev => {
+      const hasChanges = cart.some(item => {
+        const firstWord = getFirstWord(item.name);
+        const expectedPath = `/images/${firstWord}.jpg`;
+        return prev[item.id] !== expectedPath;
+      });
+      if (hasChanges || Object.keys(newSources).length > 0) {
+        return { ...prev, ...newSources };
+      }
+      return prev;
+    });
+    setTriedPaths(prev => ({ ...prev, ...newTriedPaths }));
+  }, [cart]);
+
+  // Generate all possible image paths for a product
+  const getAllPossiblePaths = (itemId) => {
+    const cartItem = cart.find(item => item.id === itemId);
+    if (!cartItem) return [];
+    
+    const extensions = ['jpg', 'jpeg', 'png', 'webp'];
+    const firstWord = getFirstWord(cartItem.name);
+    const paths = [];
+    
+    // Add first word paths (most likely to work)
+    extensions.forEach(ext => {
+      paths.push(`/images/${firstWord}.${ext}`);
+    });
+    
+    // If original path exists and is different, add it and its variations
+    if (cartItem.image && !cartItem.image.startsWith('http')) {
+      const pathWithoutExt = cartItem.image.replace(/\.(jpg|jpeg|png|webp)$/i, '');
+      extensions.forEach(ext => {
+        const path = `${pathWithoutExt}.${ext}`;
+        if (!paths.includes(path)) {
+          paths.push(path);
+        }
+      });
+    }
+    
+    return paths;
+  };
+
+  const handleImageError = (itemId, currentPath) => {
+    const allPaths = getAllPossiblePaths(itemId);
+    const tried = triedPaths[itemId] || [];
+    
+    // Find next path that hasn't been tried
+    const nextPath = allPaths.find(path => !tried.includes(path));
+    
+    if (nextPath) {
+      // Try the next path
+      setTriedPaths(prev => ({
+        ...prev,
+        [itemId]: [...(prev[itemId] || []), currentPath, nextPath]
+      }));
+      setImageSources(prev => ({
+        ...prev,
+        [itemId]: nextPath
+      }));
+    } else {
+      // All paths tried, hide image
+      setImageSources(prev => ({
+        ...prev,
+        [itemId]: null
+      }));
+    }
+  };
 
   return (
     <>
@@ -67,18 +162,22 @@ function Cart({ cart, onRemoveItem, onUpdateQuantity, isOpen, onToggle }) {
                   >
                     <div className="flex gap-4 mb-3">
                       {/* Product Image */}
-                      {item.image && (
-                        <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
-                          <img 
-                            src={item.image} 
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        </div>
-                      )}
+                      {(() => {
+                        const imageSrc = imageSources[item.id] || item.image;
+                        if (imageSrc) {
+                          return (
+                            <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
+                              <img 
+                                src={imageSrc} 
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                onError={() => handleImageError(item.id, imageSrc)}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex-1 min-w-0">
