@@ -201,7 +201,7 @@ function AddProductModal({ isOpen, onClose, onAddProduct, categories }) {
               {/* Dropdown Menu */}
               {isCategoryOpen && (
                 <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border-2 border-gray-200 overflow-hidden animate-fadeIn">
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto scrollbar-hide pr-1">
                     {availableCategories.map((category) => (
                       <button
                         key={category}
