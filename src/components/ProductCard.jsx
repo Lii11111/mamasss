@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import EditProductModal from './EditProductModal';
 
@@ -6,44 +6,88 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onUpdateProduct, onD
   const [imageError, setImageError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [currentImageSrc, setCurrentImageSrc] = useState(product.image);
-  const [triedPaths, setTriedPaths] = useState([]);
+  const [imageSources, setImageSources] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+
+  const sanitizeWords = (text = '') => {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+  };
+
+  const generatedImageSources = useMemo(() => {
+    const seen = new Set();
+    const sources = [];
+
+    const addSource = (path) => {
+      if (path && !seen.has(path)) {
+        sources.push(path);
+        seen.add(path);
+      }
+    };
+
+    const words = sanitizeWords(product.name);
+    const firstWord = words[0];
+    const descriptorWords = words.slice(1);
+    const lastWord = words[words.length - 1];
+
+    const baseNames = [];
+    const addBaseName = (base) => {
+      if (base && !baseNames.includes(base)) {
+        baseNames.push(base);
+      }
+    };
+
+    if (descriptorWords.length) {
+      // Most specific: first word + all other words (e.g., lucky-me-beef)
+      addBaseName(`/images/${firstWord}-${descriptorWords.join('-')}`);
+
+      // Next: first word + last descriptor (e.g., lucky-beef)
+      if (lastWord && lastWord !== firstWord) {
+        addBaseName(`/images/${firstWord}-${lastWord}`);
+      }
+
+      // Also try entire name slug
+      addBaseName(`/images/${words.join('-')}`);
+    }
+
+    // General fallback: just the first word
+    if (firstWord) {
+      addBaseName(`/images/${firstWord}`);
+    }
+
+    // Generate all image paths with extensions (most specific first)
+    const extensions = ['jpg', 'jpeg', 'png', 'webp'];
+    baseNames.forEach((base) => {
+      extensions.forEach((ext) => addSource(`${base}.${ext}`));
+    });
+
+    // Manual image path (if provided) should be tried last as fallback
+    if (product.image && !sources.includes(product.image)) {
+      addSource(product.image);
+    }
+
+    return sources;
+  }, [product.image, product.name]);
 
   useEffect(() => {
     // Reset image state when product changes
     setImageError(false);
-    setCurrentImageSrc(product.image);
-    setTriedPaths([product.image]);
-  }, [product.image]);
-
-  // Helper to try different extensions when image fails (first word only)
-  const tryAlternativeExtension = (imagePath) => {
-    if (!imagePath || imagePath.startsWith('http')) return null; // Skip URLs and invalid paths
-    
-    const extensions = ['jpg', 'jpeg', 'png', 'webp'];
-    const pathWithoutExt = imagePath.replace(/\.(jpg|jpeg|png|webp)$/i, '');
-    const currentExt = imagePath.match(/\.(jpg|jpeg|png|webp)$/i)?.[1]?.toLowerCase();
-    
-    // Try other extensions (filename stays the same - first word only)
-    for (const ext of extensions) {
-      if (ext !== currentExt) {
-        const newPath = `${pathWithoutExt}.${ext}`;
-        if (!triedPaths.includes(newPath)) {
-          setTriedPaths(prev => [...prev, imagePath, newPath]);
-          return newPath;
-        }
-      }
-    }
-    
-    return null;
-  };
+    setImageSources(generatedImageSources);
+    setCurrentImageIndex(0);
+    setCurrentImageSrc(generatedImageSources[0] || product.image || null);
+  }, [generatedImageSources, product.image]);
 
   const handleImageError = () => {
-    const alternativePath = tryAlternativeExtension(currentImageSrc);
-    if (alternativePath) {
-      // Try the alternative extension
-      setCurrentImageSrc(alternativePath);
+    const nextIndex = currentImageIndex + 1;
+    if (nextIndex < imageSources.length) {
+      setCurrentImageIndex(nextIndex);
+      setCurrentImageSrc(imageSources[nextIndex]);
     } else {
       // No more alternatives, show placeholder
       setImageError(true);

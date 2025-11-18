@@ -175,29 +175,15 @@ function App() {
     const updatedPrice = parseFloat(newPrice);
     
     setProducts((prevProducts) => {
+      const updatedProduct = prevProducts.find(p => p.id === productId);
+      if (!updatedProduct) return prevProducts;
+      
       const updatedProducts = prevProducts.map((product) =>
         product.id === productId ? { ...product, price: updatedPrice } : product
       );
       
       // Save edited products (for initial products that have been modified)
-      const editedProductsMap = {};
-      updatedProducts.forEach(product => {
-        const initialProduct = initialProducts.find(p => p.id === product.id);
-        if (initialProduct) {
-          // Check if product was modified from initial state
-          if (product.name !== initialProduct.name || 
-              product.category !== initialProduct.category || 
-              product.price !== initialProduct.price) {
-            editedProductsMap[product.id] = {
-              name: product.name,
-              category: product.category,
-              price: product.price
-            };
-          }
-        }
-      });
-      
-      // Load existing edited products and merge
+      // Load existing edited products first
       const savedEditedProducts = localStorage.getItem(EDITED_PRODUCTS_KEY);
       let existingEditedProducts = {};
       if (savedEditedProducts) {
@@ -208,22 +194,33 @@ function App() {
         }
       }
       
-      // Merge and save
-      const mergedEditedProducts = { ...existingEditedProducts, ...editedProductsMap };
-      // Remove entries that match initial state (no longer edited)
-      Object.keys(mergedEditedProducts).forEach(id => {
-        const productId = parseInt(id);
-        const initialProduct = initialProducts.find(p => p.id === productId);
-        if (initialProduct) {
-          const edited = mergedEditedProducts[productId];
-          if (edited.name === initialProduct.name && 
-              edited.category === initialProduct.category && 
-              edited.price === initialProduct.price) {
-            delete mergedEditedProducts[productId];
-          }
+      // Check specifically the product being edited
+      const initialProduct = initialProducts.find(p => p.id === productId);
+      if (initialProduct) {
+        // Get current product state (after price update)
+        const currentProduct = updatedProducts.find(p => p.id === productId);
+        
+        // Check if the product matches the initial state (all fields)
+        const matchesInitial = 
+          currentProduct.name === initialProduct.name && 
+          currentProduct.category === initialProduct.category && 
+          currentProduct.price === initialProduct.price;
+        
+        if (matchesInitial) {
+          // If it matches initial state, remove it from edited products
+          delete existingEditedProducts[productId];
+        } else {
+          // If it doesn't match, save the edit (preserve name and category if they were edited)
+          existingEditedProducts[productId] = {
+            name: currentProduct.name,
+            category: currentProduct.category,
+            price: currentProduct.price
+          };
         }
-      });
-      localStorage.setItem(EDITED_PRODUCTS_KEY, JSON.stringify(mergedEditedProducts));
+      }
+      
+      // Save the updated edited products map
+      localStorage.setItem(EDITED_PRODUCTS_KEY, JSON.stringify(existingEditedProducts));
       
       // Save to localStorage (for backward compatibility)
       const priceMap = {};
@@ -315,24 +312,7 @@ function App() {
       localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(customProducts));
       
       // Save edited products (for initial products that have been modified)
-      const editedProductsMap = {};
-      updatedProducts.forEach(product => {
-        const initialProduct = initialProducts.find(p => p.id === product.id);
-        if (initialProduct) {
-          // Check if product was modified from initial state
-          if (product.name !== initialProduct.name || 
-              product.category !== initialProduct.category || 
-              product.price !== initialProduct.price) {
-            editedProductsMap[product.id] = {
-              name: product.name,
-              category: product.category,
-              price: product.price
-            };
-          }
-        }
-      });
-      
-      // Load existing edited products and merge
+      // Load existing edited products first
       const savedEditedProducts = localStorage.getItem(EDITED_PRODUCTS_KEY);
       let existingEditedProducts = {};
       if (savedEditedProducts) {
@@ -343,22 +323,30 @@ function App() {
         }
       }
       
-      // Merge and save
-      const mergedEditedProducts = { ...existingEditedProducts, ...editedProductsMap };
-      // Remove entries that match initial state (no longer edited)
-      Object.keys(mergedEditedProducts).forEach(id => {
-        const productId = parseInt(id);
-        const initialProduct = initialProducts.find(p => p.id === productId);
-        if (initialProduct) {
-          const edited = mergedEditedProducts[productId];
-          if (edited.name === initialProduct.name && 
-              edited.category === initialProduct.category && 
-              edited.price === initialProduct.price) {
-            delete mergedEditedProducts[productId];
-          }
+      // Check specifically the product being edited
+      const initialProduct = initialProducts.find(p => p.id === productId);
+      if (initialProduct) {
+        // Check if the edited product matches the initial state
+        const matchesInitial = 
+          updatedProduct.name === initialProduct.name && 
+          updatedProduct.category === initialProduct.category && 
+          updatedProduct.price === initialProduct.price;
+        
+        if (matchesInitial) {
+          // If it matches initial state, remove it from edited products
+          delete existingEditedProducts[productId];
+        } else {
+          // If it doesn't match, save the edit
+          existingEditedProducts[productId] = {
+            name: updatedProduct.name,
+            category: updatedProduct.category,
+            price: updatedProduct.price
+          };
         }
-      });
-      localStorage.setItem(EDITED_PRODUCTS_KEY, JSON.stringify(mergedEditedProducts));
+      }
+      
+      // Save the updated edited products map
+      localStorage.setItem(EDITED_PRODUCTS_KEY, JSON.stringify(existingEditedProducts));
       
       // Save price if changed (for backward compatibility)
       const priceMap = {};
