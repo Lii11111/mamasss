@@ -27,7 +27,7 @@ const getFirstWord = (productName) => {
 };
 
 // Smart image getter - automatically finds images using first word only
-const getProductImage = (productName, category, manualImage = null) => {
+export const getProductImage = (productName, category, manualImage = null) => {
   // If manual image path provided, use it
   if (manualImage) {
     return manualImage;

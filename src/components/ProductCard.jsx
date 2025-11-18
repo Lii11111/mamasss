@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
-function ProductCard({ product, onAddToCart, onUpdatePrice }) {
+function ProductCard({ product, onAddToCart, onUpdatePrice, onDeleteProduct }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editPrice, setEditPrice] = useState(product.price.toString());
   const [imageError, setImageError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [currentImageSrc, setCurrentImageSrc] = useState(product.image);
   const [triedPaths, setTriedPaths] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (!isEditing) {
@@ -80,6 +82,7 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
   const categoryColor = categoryColors[product.category] || 'bg-gray-100 text-gray-700 border-gray-200';
 
   return (
+    <>
     <div className="group bg-white rounded-lg shadow-md hover:shadow-lg p-2.5 flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 border border-gray-100 relative overflow-hidden">
       {/* Decorative gradient overlay on hover */}
       <div className="absolute inset-0 bg-gradient-to-br from-gray-50/0 to-gray-50/0 group-hover:from-gray-50/50 group-hover:to-transparent transition-all duration-300 pointer-events-none rounded-lg"></div>
@@ -145,19 +148,32 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
                 }}
               />
             </div>
-            <div className="flex gap-1">
-              <button
-                onClick={handleSavePrice}
-                className="flex-1 bg-emerald-500 text-white py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-emerald-600 transition-all shadow-md hover:shadow-lg active:scale-95"
-              >
-                Save
-              </button>
-              <button
-                onClick={handleCancelEdit}
-                className="flex-1 bg-gray-200 text-gray-700 py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-gray-300 transition-all shadow-md hover:shadow-lg active:scale-95"
-              >
-                Cancel
-              </button>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex gap-1">
+                <button
+                  onClick={handleSavePrice}
+                  className="flex-1 bg-emerald-500 text-white py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-emerald-600 transition-all shadow-md hover:shadow-lg active:scale-95"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="flex-1 bg-gray-200 text-gray-700 py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-gray-300 transition-all shadow-md hover:shadow-lg active:scale-95"
+                >
+                  Cancel
+                </button>
+              </div>
+              {onDeleteProduct && (
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="w-full bg-red-500 text-white py-1.5 px-1.5 rounded-md text-[10px] font-bold hover:bg-red-600 transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Product
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -199,6 +215,22 @@ function ProductCard({ product, onAddToCart, onUpdatePrice }) {
         )}
       </button>
     </div>
+    
+    {/* Delete Confirmation Modal - Outside card container */}
+    <DeleteConfirmModal
+      isOpen={showDeleteModal}
+      onClose={() => {
+        setShowDeleteModal(false);
+        setIsEditing(false);
+      }}
+      onConfirm={() => {
+        onDeleteProduct(product.id);
+        setShowDeleteModal(false);
+        setIsEditing(false);
+      }}
+      productName={product.name}
+    />
+  </>
   );
 }
 
