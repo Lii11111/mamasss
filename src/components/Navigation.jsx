@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchChange, cart, onToggleCart }) {
+function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchChange, cart, onToggleCart, onToggleHistory, purchaseHistoryCount }) {
   const categories = ['All', 'Snacks', 'Drinks', 'Condiments', 'Biscuits', 'Candies', 'Canned Goods', 'Noodles'];
   const [isListening, setIsListening] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -179,6 +179,24 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
             </button>
           </div>
 
+          {/* Bought History Button - Visible on all screens */}
+          {onToggleHistory && (
+            <button
+              onClick={onToggleHistory}
+              className="flex px-3 py-2 md:px-4 md:py-2 lg:px-6 lg:py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold text-xs md:text-sm lg:text-base transition-colors whitespace-nowrap items-center gap-1.5 md:gap-2 relative flex-shrink-0"
+            >
+              <svg className="w-4 h-4 md:w-5 md:h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span className="hidden sm:inline">History</span>
+              {purchaseHistoryCount > 0 && (
+                <span className="bg-white text-blue-600 text-xs md:text-sm font-bold rounded-full px-1.5 md:px-2 py-0.5 min-w-[1.25rem] md:min-w-[1.5rem] flex items-center justify-center">
+                  {purchaseHistoryCount}
+                </span>
+              )}
+            </button>
+          )}
+          
           {/* Cart Button - Hidden on mobile, visible on desktop */}
           {onToggleCart && (
             <button

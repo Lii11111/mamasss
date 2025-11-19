@@ -5,6 +5,8 @@ import ProductList from './components/ProductList';
 import Cart from './components/Cart';
 import CategorySidebar from './components/CategorySidebar';
 import AddProductModal from './components/AddProductModal';
+import PurchaseHistory from './components/PurchaseHistory';
+import EndSessionModal from './components/EndSessionModal';
 import { products as initialProducts, categories } from './data/products';
 import { getProductImage } from './data/products';
 
@@ -12,6 +14,8 @@ const STORAGE_KEY = 'janet-sari-sari-product-prices';
 const PRODUCTS_STORAGE_KEY = 'janet-sari-sari-custom-products';
 const DELETED_PRODUCTS_KEY = 'janet-sari-sari-deleted-products';
 const EDITED_PRODUCTS_KEY = 'janet-sari-sari-edited-products';
+const PURCHASE_HISTORY_KEY = 'janet-sari-sari-purchase-history';
+const SESSION_EARNINGS_KEY = 'janet-sari-sari-session-earnings';
 
 function App() {
   // Load saved prices and custom products from localStorage on mount
@@ -127,6 +131,36 @@ function App() {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  
+  // Purchase history and session management
+  const [purchaseHistory, setPurchaseHistory] = useState(() => {
+    const savedHistory = localStorage.getItem(PURCHASE_HISTORY_KEY);
+    if (savedHistory) {
+      try {
+        return JSON.parse(savedHistory);
+      } catch (error) {
+        console.error('Error loading purchase history:', error);
+        return [];
+      }
+    }
+    return [];
+  });
+  
+  const [sessionEarnings, setSessionEarnings] = useState(() => {
+    const savedEarnings = localStorage.getItem(SESSION_EARNINGS_KEY);
+    if (savedEarnings) {
+      try {
+        return parseFloat(savedEarnings) || 0;
+      } catch (error) {
+        console.error('Error loading session earnings:', error);
+        return 0;
+      }
+    }
+    return 0;
+  });
+  
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isEndSessionModalOpen, setIsEndSessionModalOpen] = useState(false);
 
   // Filter products based on category and search term
   const filteredProducts = useMemo(() => {
@@ -455,6 +489,54 @@ function App() {
     });
   };
 
+  // Handle checkout - add cart to purchase history
+  const handleCheckout = () => {
+    if (cart.length === 0) return;
+    
+    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const timestamp = Date.now();
+    const purchaseEntry = {
+      id: timestamp,
+      date: new Date().toISOString(),
+      items: cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image
+      })),
+      total: total
+    };
+    
+    // Add to purchase history
+    const updatedHistory = [purchaseEntry, ...purchaseHistory];
+    setPurchaseHistory(updatedHistory);
+    localStorage.setItem(PURCHASE_HISTORY_KEY, JSON.stringify(updatedHistory));
+    
+    // Update session earnings
+    const newEarnings = sessionEarnings + total;
+    setSessionEarnings(newEarnings);
+    localStorage.setItem(SESSION_EARNINGS_KEY, newEarnings.toString());
+    
+    // Clear cart
+    setCart([]);
+    setIsCartOpen(false);
+  };
+  
+  // Handle end session - show modal with total earnings
+  const handleEndSession = () => {
+    setIsEndSessionModalOpen(true);
+  };
+  
+  // Handle reset session - clear session earnings, purchase history, and close modal
+  const handleResetSession = () => {
+    setSessionEarnings(0);
+    setPurchaseHistory([]);
+    localStorage.setItem(SESSION_EARNINGS_KEY, '0');
+    localStorage.setItem(PURCHASE_HISTORY_KEY, JSON.stringify([]));
+    setIsEndSessionModalOpen(false);
+  };
+
   // Delete product
   const handleDeleteProduct = (productId) => {
     setProducts((prevProducts) => {
@@ -527,51 +609,74 @@ function App() {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20 md:pb-4">
-      <Navigation
-        selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        cart={cart}
-        onToggleCart={() => setIsCartOpen(!isCartOpen)}
-      />
-      <div className="flex">
-        {/* Category Sidebar - Desktop Only */}
-        <CategorySidebar
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
+      {isHistoryOpen ? (
+        // Purchase History View
+        <PurchaseHistory
+          purchaseHistory={purchaseHistory}
+          sessionEarnings={sessionEarnings}
+          onEndSession={handleEndSession}
+          onClose={() => setIsHistoryOpen(false)}
         />
-        {/* Main Content - Adjusted for sidebar on desktop */}
-        <main className="flex-1 md:ml-64">
-          <ProductList 
-            products={filteredProducts} 
+      ) : (
+        // Main Store View
+        <>
+          <Navigation
             selectedCategory={selectedCategory}
-            onAddToCart={handleAddToCart} 
-            onUpdatePrice={handleUpdatePrice}
-            onUpdateProduct={handleUpdateProduct}
-            onDeleteProduct={handleDeleteProduct}
-            onAddProductClick={() => setIsAddProductModalOpen(true)}
+            onCategoryChange={setSelectedCategory}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            cart={cart}
+            onToggleCart={() => setIsCartOpen(!isCartOpen)}
+            onToggleHistory={() => setIsHistoryOpen(true)}
+            purchaseHistoryCount={purchaseHistory.length}
+          />
+          <div className="flex">
+            {/* Category Sidebar - Desktop Only */}
+            <CategorySidebar
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
+            />
+            {/* Main Content - Adjusted for sidebar on desktop */}
+            <main className="flex-1 md:ml-64">
+              <ProductList 
+                products={filteredProducts} 
+                selectedCategory={selectedCategory}
+                onAddToCart={handleAddToCart} 
+                onUpdatePrice={handleUpdatePrice}
+                onUpdateProduct={handleUpdateProduct}
+                onDeleteProduct={handleDeleteProduct}
+                onAddProductClick={() => setIsAddProductModalOpen(true)}
+                categories={categories}
+              />
+            </main>
+          </div>
+          <Cart
+            cart={cart}
+            onRemoveItem={handleRemoveItem}
+            onUpdateQuantity={handleUpdateQuantity}
+            isOpen={isCartOpen}
+            onToggle={() => setIsCartOpen(!isCartOpen)}
+            onCheckout={handleCheckout}
+          />
+          
+          {/* Add Product Modal */}
+          <AddProductModal
+            isOpen={isAddProductModalOpen}
+            onClose={() => setIsAddProductModalOpen(false)}
+            onAddProduct={handleAddProduct}
             categories={categories}
           />
-        </main>
-      </div>
-      <Cart
-        cart={cart}
-        onRemoveItem={handleRemoveItem}
-        onUpdateQuantity={handleUpdateQuantity}
-        isOpen={isCartOpen}
-        onToggle={() => setIsCartOpen(!isCartOpen)}
-      />
+        </>
+      )}
       
-      {/* Add Product Modal */}
-      <AddProductModal
-        isOpen={isAddProductModalOpen}
-        onClose={() => setIsAddProductModalOpen(false)}
-        onAddProduct={handleAddProduct}
-        categories={categories}
+      {/* End Session Modal */}
+      <EndSessionModal
+        isOpen={isEndSessionModalOpen}
+        onClose={() => setIsEndSessionModalOpen(false)}
+        sessionEarnings={sessionEarnings}
+        onResetSession={handleResetSession}
       />
-      
     </div>
   );
 }

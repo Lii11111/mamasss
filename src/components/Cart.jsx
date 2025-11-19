@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-function Cart({ cart, onRemoveItem, onUpdateQuantity, isOpen, onToggle }) {
+function Cart({ cart, onRemoveItem, onUpdateQuantity, isOpen, onToggle, onCheckout }) {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   
   // Track image sources and tried paths for each cart item
@@ -232,6 +232,7 @@ function Cart({ cart, onRemoveItem, onUpdateQuantity, isOpen, onToggle }) {
               <span className="text-4xl font-black text-emerald-600">₱{total.toFixed(2)}</span>
             </div>
             <button
+              onClick={onCheckout}
               className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-500 text-white py-4 rounded-2xl font-black text-lg hover:from-emerald-600 hover:via-emerald-700 hover:to-emerald-600 transition-all duration-300 shadow-xl hover:shadow-2xl disabled:bg-gray-300 disabled:cursor-not-allowed active:scale-95 flex items-center justify-center gap-3 transform hover:scale-105"
               disabled={cart.length === 0}
             >
