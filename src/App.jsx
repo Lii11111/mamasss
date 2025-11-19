@@ -7,6 +7,7 @@ import CategorySidebar from './components/CategorySidebar';
 import AddProductModal from './components/AddProductModal';
 import PurchaseHistory from './components/PurchaseHistory';
 import EndSessionModal from './components/EndSessionModal';
+import CheckoutModal from './components/CheckoutModal';
 import { products as initialProducts, categories } from './data/products';
 import { getProductImage } from './data/products';
 
@@ -161,6 +162,7 @@ function App() {
   
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isEndSessionModalOpen, setIsEndSessionModalOpen] = useState(false);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
 
   // Filter products based on category and search term
   const filteredProducts = useMemo(() => {
@@ -521,6 +523,9 @@ function App() {
     // Clear cart
     setCart([]);
     setIsCartOpen(false);
+    
+    // Show checkout confirmation modal
+    setIsCheckoutModalOpen(true);
   };
   
   // Handle end session - show modal with total earnings
@@ -676,6 +681,12 @@ function App() {
         onClose={() => setIsEndSessionModalOpen(false)}
         sessionEarnings={sessionEarnings}
         onResetSession={handleResetSession}
+      />
+      
+      {/* Checkout Modal */}
+      <CheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
       />
     </div>
   );
