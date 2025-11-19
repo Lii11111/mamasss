@@ -10,6 +10,7 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onUpdateProduct, onD
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [quantity, setQuantity] = useState(1);
 
   const sanitizeWords = (text = '') => {
     return text
@@ -81,7 +82,8 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onUpdateProduct, onD
     setImageSources(generatedImageSources);
     setCurrentImageIndex(0);
     setCurrentImageSrc(generatedImageSources[0] || product.image || null);
-  }, [generatedImageSources, product.image]);
+    setQuantity(1); // Reset quantity when product changes
+  }, [generatedImageSources, product.image, product.id]);
 
   const handleImageError = () => {
     const nextIndex = currentImageIndex + 1;
@@ -169,9 +171,36 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onUpdateProduct, onD
         
         <div className="mb-2">
           <p className="text-[9px] text-gray-500 font-medium mb-0.5">Price</p>
-          <p className="text-xl font-black text-emerald-600 leading-none">
-            ₱{product.price.toFixed(2)}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xl font-black text-emerald-600 leading-none">
+              ₱{product.price.toFixed(2)}
+            </p>
+            {/* Quantity Selector */}
+            <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg border border-gray-200 p-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setQuantity(prev => Math.max(1, prev - 1));
+                }}
+                className="w-6 h-6 flex items-center justify-center bg-white text-emerald-600 rounded hover:bg-emerald-50 transition-colors font-black text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                disabled={quantity <= 1}
+              >
+                −
+              </button>
+              <span className="min-w-[1.5rem] text-center text-sm font-bold text-gray-900">
+                {quantity}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setQuantity(prev => prev + 1);
+                }}
+                className="w-6 h-6 flex items-center justify-center bg-white text-emerald-600 rounded hover:bg-emerald-50 transition-colors font-black text-sm"
+              >
+                +
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -179,8 +208,14 @@ function ProductCard({ product, onAddToCart, onUpdatePrice, onUpdateProduct, onD
       <button
         onClick={() => {
           setIsAdding(true);
-          onAddToCart(product);
-          setTimeout(() => setIsAdding(false), 600);
+          // Add the product multiple times based on quantity
+          for (let i = 0; i < quantity; i++) {
+            onAddToCart(product);
+          }
+          setTimeout(() => {
+            setIsAdding(false);
+            setQuantity(1); // Reset quantity after adding
+          }, 600);
         }}
         className={`w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-2 px-2 rounded-md font-bold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg relative z-10 group/btn text-xs overflow-hidden ${
           isAdding ? 'scale-95' : 'active:scale-95'
