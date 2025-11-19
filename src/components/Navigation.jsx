@@ -173,7 +173,7 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
             </div>
             <button
               type="button"
-              className="px-4 py-2 md:px-6 md:py-3 bg-green-700 hover:bg-green-600 text-white rounded-lg font-semibold text-sm md:text-base transition-colors whitespace-nowrap"
+              className="hidden md:block px-4 py-2 md:px-6 md:py-3 bg-green-700 hover:bg-green-600 text-white rounded-lg font-semibold text-sm md:text-base transition-colors whitespace-nowrap"
             >
               Search
             </button>
