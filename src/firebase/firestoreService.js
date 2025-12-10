@@ -269,15 +269,31 @@ export const saveSession = async (sessionData) => {
       });
       return { id: sessionData.id, ...sessionData };
     } else {
+      // Remove id from sessionData if it exists (Firestore will generate one)
+      const { id, ...dataToSave } = sessionData;
       const docRef = await addDoc(sessionsRef, {
-        ...sessionData,
+        ...dataToSave,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
-      return { id: docRef.id, ...sessionData };
+      return { id: docRef.id, ...dataToSave };
     }
   } catch (error) {
-    console.error('Error saving session:', error);
+    console.error('Error saving session to Firestore:', {
+      code: error.code,
+      message: error.message,
+      fullError: error
+    });
+    
+    // Provide more helpful error messages
+    if (error.code === 'permission-denied') {
+      throw new Error('Permission denied: Check Firestore security rules for "sessions" collection');
+    } else if (error.code === 'unavailable') {
+      throw new Error('Firestore unavailable: Check your internet connection');
+    } else if (error.message && error.message.includes('timeout')) {
+      throw new Error('Firestore timeout: Network may be slow, try again');
+    }
+    
     throw error;
   }
 };

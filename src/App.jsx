@@ -740,47 +740,70 @@ function App() {
     
     console.log('💾 Saving session to Firestore:', sessionData);
     
+    let saved = false;
+    
+    // Try Firestore client SDK first (should work from mobile)
     try {
-      // Try Firestore client SDK first
-      try {
-        await Promise.race([
-          saveSession(sessionData),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-        ]);
-        console.log('✅ Session saved to Firestore successfully!');
-      } catch (firestoreError) {
-        console.warn('⚠️ Firestore client SDK failed, trying backend API...', firestoreError.message);
-        
-        // Fallback to backend API
-        if (apiAvailable) {
-          try {
-            // Use the shared API base URL helper
-            const response = await fetch(`${getAPIBaseURL()}/sessions`, {
+      console.log('📤 Attempting to save session via Firestore client SDK...');
+      await Promise.race([
+        saveSession(sessionData),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout (10s)')), 10000))
+      ]);
+      console.log('✅ Session saved to Firestore successfully!');
+      saved = true;
+    } catch (firestoreError) {
+      console.error('⚠️ Firestore client SDK failed:', {
+        code: firestoreError.code,
+        message: firestoreError.message,
+        fullError: firestoreError
+      });
+      
+      // Fallback to backend API (if available and accessible)
+      if (apiAvailable) {
+        try {
+          console.log('📤 Attempting to save session via backend API (fallback)...');
+          const apiUrl = `${getAPIBaseURL()}/sessions`;
+          console.log('🔗 API URL:', apiUrl);
+          
+          const response = await Promise.race([
+            fetch(apiUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify(sessionData)
-            });
-            
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            console.log('✅ Session saved via backend API:', result);
-          } catch (apiError) {
-            console.error('❌ Backend API also failed:', apiError);
-            showError('Session saved locally but failed to sync to Firestore.');
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('API timeout (5s)')), 5000))
+          ]);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
           }
-        } else {
-          console.error('❌ Both Firestore and API failed');
-          showError('Session saved locally but failed to sync to Firestore.');
+          
+          const result = await response.json();
+          console.log('✅ Session saved via backend API:', result);
+          saved = true;
+        } catch (apiError) {
+          console.error('❌ Backend API also failed:', {
+            message: apiError.message,
+            fullError: apiError
+          });
+          // Don't show error yet - will show below if both failed
         }
+      } else {
+        console.warn('⚠️ Backend API not available (not reachable from this device)');
       }
-    } catch (error) {
-      console.error('❌ Error saving session:', error);
-      showError('Failed to save session. Session data may be lost.');
+    }
+    
+    // Show error if both methods failed
+    if (!saved) {
+      const errorMsg = 'Session saved locally but failed to sync to Firestore. ';
+      const details = apiAvailable 
+        ? 'Both Firestore and backend API failed. Check console for details.'
+        : 'Firestore failed and backend API is not reachable. Check your network connection.';
+      console.error('❌ Failed to save session to Firestore:', errorMsg + details);
+      showError(errorMsg + details);
     }
     
     // Clear session data after saving
