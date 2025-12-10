@@ -12,7 +12,7 @@ import ErrorNotification from './components/ErrorNotification';
 import { products as initialProducts, categories } from './data/products';
 import { getProductImage } from './data/products';
 import { getAllProducts, addProduct, updateProduct, deleteProduct, addPurchase, getAllPurchases, saveSession } from './firebase/firestoreService';
-import { updateProductViaAPI, updateProductByNameViaAPI, addPurchaseViaAPI, checkAPIAvailability, getAllProductsViaAPI } from './utils/apiService';
+import { updateProductViaAPI, updateProductByNameViaAPI, addPurchaseViaAPI, checkAPIAvailability, getAllProductsViaAPI, getAPIBaseURL } from './utils/apiService';
 import './utils/firestoreDebug'; // Load debug utilities
 
 const STORAGE_KEY = 'janet-sari-sari-product-prices';
@@ -754,7 +754,8 @@ function App() {
         // Fallback to backend API
         if (apiAvailable) {
           try {
-            const response = await fetch('http://localhost:3000/api/sessions', {
+            // Use the shared API base URL helper
+            const response = await fetch(`${getAPIBaseURL()}/sessions`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

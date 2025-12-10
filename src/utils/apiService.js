@@ -1,5 +1,26 @@
 // API Service - Fallback to backend API when Firestore client SDK fails
-const API_BASE_URL = 'http://localhost:3000/api';
+// Use environment variable or detect local IP for mobile access
+export const getAPIBaseURL = () => {
+  // First, try environment variable (can be set in .env)
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // If localhost (same device), use localhost
+  const hostname = window.location.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:3000/api';
+  }
+  
+  // If accessing from mobile/remote, try to use same host but different port
+  // This assumes frontend and backend are on same network
+  const protocol = window.location.protocol;
+  const baseUrl = `${protocol}//${hostname}:3000/api`;
+  
+  return baseUrl;
+};
+
+const API_BASE_URL = getAPIBaseURL();
 
 /**
  * Update product via backend API (fallback when Firestore client SDK fails)
