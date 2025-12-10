@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Navigation from './components/Navigation';
 import SearchBar from './components/SearchBar';
 import ProductList from './components/ProductList';
@@ -8,8 +8,12 @@ import AddProductModal from './components/AddProductModal';
 import PurchaseHistory from './components/PurchaseHistory';
 import EndSessionModal from './components/EndSessionModal';
 import CheckoutModal from './components/CheckoutModal';
+import ErrorNotification from './components/ErrorNotification';
 import { products as initialProducts, categories } from './data/products';
 import { getProductImage } from './data/products';
+import { getAllProducts, addProduct, updateProduct, deleteProduct, addPurchase, getAllPurchases, saveSession } from './firebase/firestoreService';
+import { updateProductViaAPI, updateProductByNameViaAPI, addPurchaseViaAPI, checkAPIAvailability, getAllProductsViaAPI } from './utils/apiService';
+import './utils/firestoreDebug'; // Load debug utilities
 
 const STORAGE_KEY = 'janet-sari-sari-product-prices';
 const PRODUCTS_STORAGE_KEY = 'janet-sari-sari-custom-products';
@@ -17,152 +21,247 @@ const DELETED_PRODUCTS_KEY = 'janet-sari-sari-deleted-products';
 const EDITED_PRODUCTS_KEY = 'janet-sari-sari-edited-products';
 const PURCHASE_HISTORY_KEY = 'janet-sari-sari-purchase-history';
 const SESSION_EARNINGS_KEY = 'janet-sari-sari-session-earnings';
+const CART_STORAGE_KEY = 'janet-sari-sari-cart';
 
 function App() {
-  // Load saved prices and custom products from localStorage on mount
-  const [products, setProducts] = useState(() => {
-    const savedPrices = localStorage.getItem(STORAGE_KEY);
-    const savedCustomProducts = localStorage.getItem(PRODUCTS_STORAGE_KEY);
-    const savedDeletedProducts = localStorage.getItem(DELETED_PRODUCTS_KEY);
-    
-    // Get list of deleted product IDs
-    let deletedProductIds = [];
-    if (savedDeletedProducts) {
-      try {
-        deletedProductIds = JSON.parse(savedDeletedProducts);
-      } catch (error) {
-        console.error('Error loading deleted products:', error);
+  // Start with empty products, will load from Firestore
+  const [products, setProducts] = useState([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [productsFromFirestore, setProductsFromFirestore] = useState(false); // Track if products came from Firestore
+  const [apiAvailable, setApiAvailable] = useState(false); // Track if backend API is available
+  
+  // Check API availability on mount
+  useEffect(() => {
+    checkAPIAvailability().then(available => {
+      setApiAvailable(available);
+      if (available) {
+        console.log('✅ Backend API is available (fallback for Firestore writes)');
+      } else {
+        console.warn('⚠️ Backend API not available. Firestore writes only.');
       }
-    }
-    
-    // Filter out deleted products from initial products
-    let allProducts = initialProducts.filter(product => !deletedProductIds.includes(product.id));
-    
-    // Load edited products (initial products that have been modified)
-    const savedEditedProducts = localStorage.getItem(EDITED_PRODUCTS_KEY);
-    if (savedEditedProducts) {
+    });
+  }, []);
+  
+  // Load products from Firestore on mount
+  useEffect(() => {
+    const loadProducts = async () => {
+      // Show initial products immediately (don't wait)
+      setProducts(initialProducts);
+      setIsLoadingProducts(false);
+      
+      // Check if API is available first (more reliable than Firestore client SDK)
+      const apiAvailable = await checkAPIAvailability();
+      
+      // Priority 1: Try backend API first (most reliable, has latest data)
+      if (apiAvailable) {
+        try {
+          console.log('📦 Loading products from backend API (priority 1)...');
+          const startTime = Date.now();
+          const apiProducts = await Promise.race([
+            getAllProductsViaAPI(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('API timeout (5s)')), 5000))
+          ]);
+          
+          const loadTime = Date.now() - startTime;
+          if (apiProducts && apiProducts.length > 0) {
+            console.log(`✅ Loaded ${apiProducts.length} products from backend API in ${loadTime}ms`);
+            console.log('Sample product IDs:', apiProducts.slice(0, 3).map(p => ({ id: p.id, type: typeof p.id, name: p.name, price: p.price })));
+            setProducts(apiProducts);
+            setProductsFromFirestore(true);
+            return; // Success! Stop here
+          }
+        } catch (apiError) {
+          console.warn('⚠️ Backend API load failed:', apiError.message);
+          // Continue to Firestore fallback below
+        }
+      }
+      
+      // Priority 2: Try Firestore client SDK (fallback if API not available or failed)
       try {
-        const editedProducts = JSON.parse(savedEditedProducts);
-        // Apply edits to initial products
-        allProducts = allProducts.map(product => {
-          const edited = editedProducts[product.id];
-          if (edited) {
+        console.log('📦 Loading products from Firestore (priority 2)...');
+        const startTime = Date.now();
+        
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Firestore query timeout (8s)')), 8000)
+        );
+        
+        const firestoreProducts = await Promise.race([
+          getAllProducts(),
+          timeoutPromise
+        ]);
+        
+        const loadTime = Date.now() - startTime;
+        console.log(`✅ Loaded ${firestoreProducts.length} products from Firestore in ${loadTime}ms`);
+        console.log('Sample product IDs:', firestoreProducts.slice(0, 3).map(p => ({ id: p.id, type: typeof p.id, name: p.name, price: p.price })));
+        
+        if (firestoreProducts && firestoreProducts.length > 0) {
+          setProducts(firestoreProducts);
+          setProductsFromFirestore(true);
+          return; // Success! Stop here
+        } else {
+          console.warn('⚠️ No products in Firestore, keeping initial products');
+          setProductsFromFirestore(false);
+        }
+      } catch (error) {
+        console.error('❌ Error loading products from Firestore:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
+        // If both API and Firestore failed, keep initial products as last resort
+        console.warn('⚠️ Both API and Firestore failed. Using initial products (may have old prices).');
+        setProductsFromFirestore(false);
+      }
+    };
+    
+    loadProducts();
+  }, []);
+  
+  // Sync cart with current products after products are loaded
+  // This ensures cart items have correct IDs, prices, and names
+  useEffect(() => {
+    if (products.length === 0) return; // Wait for products to load
+    
+    setCart((prevCart) => {
+      if (prevCart.length === 0) return prevCart;
+      
+      // Sync each cart item with current products
+      const syncedCart = prevCart
+        .map((cartItem) => {
+          // Try to find product by ID first
+          let product = products.find(p => p.id === cartItem.id);
+          
+          // If not found by ID, try to find by name (in case ID changed)
+          if (!product) {
+            product = products.find(p => 
+              p.name.toLowerCase().trim() === cartItem.name?.toLowerCase().trim()
+            );
+          }
+          
+          if (product) {
+            // Update cart item with latest product data (price, image, etc.)
             return {
-              ...product,
-              name: edited.name || product.name,
-              category: edited.category || product.category,
-              price: edited.price !== undefined ? edited.price : product.price,
-              image: (edited.name || edited.category) 
-                ? getProductImage(edited.name || product.name, edited.category || product.category)
-                : product.image
+              ...cartItem,
+              id: product.id, // Update ID in case it changed
+              name: product.name,
+              price: product.price, // Use latest price
+              category: product.category,
+              image: product.image || cartItem.image
             };
           }
-          return product;
+          
+          // Product not found (might have been deleted), keep it for now
+          // User can remove it manually if needed
+          return cartItem;
+        })
+        .filter((cartItem) => {
+          // Remove items if product was deleted (optional - you can keep them)
+          // For now, we'll keep them so user can see what was removed
+          return true;
         });
-      } catch (error) {
-        console.error('Error loading edited products:', error);
+      
+      // Only update if there were changes
+      if (JSON.stringify(syncedCart) !== JSON.stringify(prevCart)) {
+        console.log('🔄 Synced cart with current products');
+        return syncedCart;
       }
-    }
-    
-    // Load custom products and insert them in the correct category position
-    if (savedCustomProducts) {
-      try {
-        const customProducts = JSON.parse(savedCustomProducts);
-        // Also filter out deleted custom products
-        const activeCustomProducts = customProducts.filter(product => !deletedProductIds.includes(product.id));
-        
-        // Insert each custom product in the correct position based on category
-        const categoryOrder = ['Snacks', 'Drinks', 'Condiments', 'Biscuits', 'Candies', 'Canned Goods', 'Noodles'];
-        
-        activeCustomProducts.forEach(customProduct => {
-          let insertIndex = allProducts.length;
-          
-          // Find the last product of the same category
-          for (let i = allProducts.length - 1; i >= 0; i--) {
-            if (allProducts[i].category === customProduct.category) {
-              insertIndex = i + 1;
-              break;
-            }
-          }
-          
-          // If category not found, find where to insert based on category order
-          if (insertIndex === allProducts.length) {
-            const newCategoryIndex = categoryOrder.indexOf(customProduct.category);
-            if (newCategoryIndex !== -1) {
-              for (let i = 0; i < allProducts.length; i++) {
-                const productCategoryIndex = categoryOrder.indexOf(allProducts[i].category);
-                if (productCategoryIndex > newCategoryIndex) {
-                  insertIndex = i;
-                  break;
-                }
-              }
-            }
-          }
-          
-          // Insert the custom product
-          allProducts = [
-            ...allProducts.slice(0, insertIndex),
-            customProduct,
-            ...allProducts.slice(insertIndex)
-          ];
-        });
-      } catch (error) {
-        console.error('Error loading custom products:', error);
-      }
-    }
-    
-    // Load saved prices
-    if (savedPrices) {
-      try {
-        const priceMap = JSON.parse(savedPrices);
-        allProducts = allProducts.map(product => ({
-          ...product,
-          price: priceMap[product.id] !== undefined ? priceMap[product.id] : product.price
-        }));
-      } catch (error) {
-        console.error('Error loading saved prices:', error);
-      }
-    }
-    
-    return allProducts;
-  });
+      
+      return prevCart;
+    });
+  }, [products]); // Sync whenever products change
   
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
-  const [cart, setCart] = useState([]);
+  
+  // Load cart from localStorage on mount
+  const [cart, setCart] = useState(() => {
+    try {
+      const savedCart = localStorage.getItem(CART_STORAGE_KEY);
+      return savedCart ? JSON.parse(savedCart) : [];
+    } catch (error) {
+      console.warn('Failed to load cart from localStorage:', error);
+      return [];
+    }
+  });
+  
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch (error) {
+      console.warn('Failed to save cart to localStorage:', error);
+    }
+  }, [cart]);
+  
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   
   // Purchase history and session management
-  const [purchaseHistory, setPurchaseHistory] = useState(() => {
-    const savedHistory = localStorage.getItem(PURCHASE_HISTORY_KEY);
-    if (savedHistory) {
-      try {
-        return JSON.parse(savedHistory);
-      } catch (error) {
-        console.error('Error loading purchase history:', error);
-        return [];
-      }
+  const [purchaseHistory, setPurchaseHistory] = useState([]);
+  const [sessionEarnings, setSessionEarnings] = useState(0);
+  
+  // Track session start time (initialize from localStorage or current time)
+  const [sessionStartTime, setSessionStartTime] = useState(() => {
+    try {
+      const saved = localStorage.getItem('janet-sari-sari-session-start-time');
+      return saved ? new Date(saved) : new Date();
+    } catch {
+      return new Date();
     }
-    return [];
   });
   
-  const [sessionEarnings, setSessionEarnings] = useState(() => {
-    const savedEarnings = localStorage.getItem(SESSION_EARNINGS_KEY);
-    if (savedEarnings) {
-      try {
-        return parseFloat(savedEarnings) || 0;
-      } catch (error) {
-        console.error('Error loading session earnings:', error);
-        return 0;
+  // Check API availability on mount
+  useEffect(() => {
+    checkAPIAvailability().then(available => {
+      setApiAvailable(available);
+      if (available) {
+        console.log('✅ Backend API is available (fallback for Firestore writes)');
+      } else {
+        console.warn('⚠️ Backend API not available. Firestore writes only.');
       }
-    }
-    return 0;
-  });
+    });
+  }, []);
+
+  // Load purchase history from Firestore
+  useEffect(() => {
+    const loadPurchaseHistory = async () => {
+      try {
+        const purchases = await getAllPurchases();
+        setPurchaseHistory(purchases);
+        
+        // Calculate session earnings from purchases
+        const totalEarnings = purchases.reduce((sum, purchase) => sum + (purchase.total || 0), 0);
+        setSessionEarnings(totalEarnings);
+      } catch (error) {
+        console.error('Error loading purchase history:', error);
+        // Fallback to localStorage
+        const savedHistory = localStorage.getItem(PURCHASE_HISTORY_KEY);
+        if (savedHistory) {
+          try {
+            const history = JSON.parse(savedHistory);
+            setPurchaseHistory(history);
+            const totalEarnings = history.reduce((sum, purchase) => sum + (purchase.total || 0), 0);
+            setSessionEarnings(totalEarnings);
+          } catch (e) {
+            showError('Error loading purchase history');
+          }
+        }
+      }
+    };
+    
+    loadPurchaseHistory();
+  }, []);
   
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isEndSessionModalOpen, setIsEndSessionModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [error, setError] = useState(null);
+  
+  // Helper function to show errors in the browser UI
+  const showError = (message) => {
+    setError(message);
+    // Also log to browser console for developers
+    console.error(message);
+  };
 
   // Filter products based on category and search term
   const filteredProducts = useMemo(() => {
@@ -207,192 +306,246 @@ function App() {
   };
 
   // Update product price
-  const handleUpdatePrice = (productId, newPrice) => {
+  const handleUpdatePrice = async (productId, newPrice) => {
     const updatedPrice = parseFloat(newPrice);
+    const product = products.find(p => p.id === productId);
+    if (!product) {
+      showError('Product not found');
+      return;
+    }
     
-    setProducts((prevProducts) => {
-      const updatedProduct = prevProducts.find(p => p.id === productId);
-      if (!updatedProduct) return prevProducts;
-      
-      const updatedProducts = prevProducts.map((product) =>
-        product.id === productId ? { ...product, price: updatedPrice } : product
-      );
-      
-      // Save edited products (for initial products that have been modified)
-      // Load existing edited products first
-      const savedEditedProducts = localStorage.getItem(EDITED_PRODUCTS_KEY);
-      let existingEditedProducts = {};
-      if (savedEditedProducts) {
-        try {
-          existingEditedProducts = JSON.parse(savedEditedProducts);
-        } catch (error) {
-          console.error('Error loading edited products:', error);
-        }
-      }
-      
-      // Check specifically the product being edited
-      const initialProduct = initialProducts.find(p => p.id === productId);
-      if (initialProduct) {
-        // Get current product state (after price update)
-        const currentProduct = updatedProducts.find(p => p.id === productId);
-        
-        // Check if the product matches the initial state (all fields)
-        const matchesInitial = 
-          currentProduct.name === initialProduct.name && 
-          currentProduct.category === initialProduct.category && 
-          currentProduct.price === initialProduct.price;
-        
-        if (matchesInitial) {
-          // If it matches initial state, remove it from edited products
-          delete existingEditedProducts[productId];
-        } else {
-          // If it doesn't match, save the edit (preserve name and category if they were edited)
-          existingEditedProducts[productId] = {
-            name: currentProduct.name,
-            category: currentProduct.category,
-            price: currentProduct.price
-          };
-        }
-      }
-      
-      // Save the updated edited products map
-      localStorage.setItem(EDITED_PRODUCTS_KEY, JSON.stringify(existingEditedProducts));
-      
-      // Save to localStorage (for backward compatibility)
-      const priceMap = {};
-      updatedProducts.forEach(product => {
-        // Only save prices that differ from initial prices
-        const initialProduct = initialProducts.find(p => p.id === product.id);
-        if (initialProduct && product.price !== initialProduct.price) {
-          priceMap[product.id] = product.price;
-        }
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(priceMap));
-      
-      return updatedProducts;
+    // Check if product has a Firestore ID (string) or is from initial data (number)
+    // Firestore products have string IDs, initial products have numeric IDs
+    // Firestore IDs are strings that are NOT numbers
+    const isFirestoreProduct = typeof productId === 'string' && !productId.startsWith('temp-') && isNaN(Number(productId));
+    const shouldSaveToFirestore = isFirestoreProduct || productsFromFirestore;
+    
+    console.log('🔧 Updating price:', { 
+      productId, 
+      type: typeof productId, 
+      isFirestoreProduct,
+      productsFromFirestore,
+      shouldSaveToFirestore,
+      productName: product.name,
+      newPrice: updatedPrice
     });
     
-    // Also update price in cart if item exists
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.id === productId ? { ...item, price: updatedPrice } : item
-      )
-    );
+    try {
+      // Always update local state first for immediate feedback
+      setProducts((prevProducts) =>
+        prevProducts.map((product) =>
+          product.id === productId ? { ...product, price: updatedPrice } : product
+        )
+      );
+      
+      // Also update price in cart if item exists
+      setCart((prevCart) =>
+        prevCart.map((item) =>
+          item.id === productId ? { ...item, price: updatedPrice } : item
+        )
+      );
+      
+      // ALWAYS try to save to Firestore (either via client SDK or backend API)
+      // Even if product has numeric ID, we can find it by name+category
+      const updateData = {
+        name: product.name,
+        category: product.category,
+        price: updatedPrice,
+        image: product.image
+      };
+      
+      let saved = false;
+      
+      // Try Firestore client SDK first (only if we have Firestore ID)
+      if (isFirestoreProduct) {
+        try {
+          console.log('📤 Attempting Firestore client SDK update:', {
+            productId,
+            productName: product.name,
+            newPrice: updatedPrice
+          });
+          const result = await Promise.race([
+            updateProduct(productId, updateData),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+          ]);
+          console.log('✅ Firestore client SDK update successful!', result);
+          // Update local state with updated product
+          setProducts((prevProducts) =>
+            prevProducts.map((p) =>
+              p.id === productId ? { ...p, price: updatedPrice } : p
+            )
+          );
+          saved = true;
+        } catch (firestoreError) {
+          console.warn('⚠️ Firestore client SDK failed:', firestoreError.code || firestoreError.message);
+          // Will fall through to API fallback below
+        }
+      }
+      
+      // Fallback to backend API if client SDK failed or product has numeric ID
+      if (!saved && apiAvailable) {
+        try {
+          if (isFirestoreProduct) {
+            // Try API with Firestore ID
+            console.log('📤 Attempting backend API update with ID (fallback)...');
+            const result = await updateProductViaAPI(productId, updateData);
+            console.log('✅ Backend API update successful!', result);
+            // Update local state with the updated product from server
+            setProducts((prevProducts) =>
+              prevProducts.map((p) =>
+                p.id === productId ? { ...p, ...result } : p
+              )
+            );
+            saved = true;
+          } else {
+            // Try API with name+category (for numeric IDs)
+            console.log('📤 Attempting backend API update by name+category...');
+            const result = await updateProductByNameViaAPI(updateData);
+            console.log('✅ Backend API update by name successful!', result);
+            // Update local product ID and data to match Firestore
+            setProducts((prevProducts) =>
+              prevProducts.map((p) =>
+                p.id === productId ? { ...result } : p
+              )
+            );
+            setProductsFromFirestore(true); // Mark that we now have Firestore products
+            saved = true;
+          }
+        } catch (apiError) {
+          console.error('❌ Backend API update failed:', apiError);
+          showError(`Failed to save price: ${apiError.message || 'Check console for details'}`);
+        }
+      }
+      
+      // Reload products after successful save to ensure consistency
+      if (saved) {
+        console.log('🔄 Reloading products after price update to ensure latest data...');
+        try {
+          // Priority 1: Try API first (most reliable)
+          if (apiAvailable) {
+            try {
+              const apiProducts = await Promise.race([
+                getAllProductsViaAPI(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('API reload timeout')), 3000))
+              ]);
+              if (apiProducts && apiProducts.length > 0) {
+                setProducts(apiProducts);
+                setProductsFromFirestore(true);
+                console.log(`✅ Products reloaded from API after update (${apiProducts.length} products)`);
+                return;
+              }
+            } catch (apiReloadError) {
+              console.warn('⚠️ API reload failed, trying Firestore...', apiReloadError.message);
+            }
+          }
+          
+          // Priority 2: Try Firestore as fallback
+          try {
+            const reloadedProducts = await Promise.race([
+              getAllProducts(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore reload timeout')), 3000))
+            ]);
+            if (reloadedProducts && reloadedProducts.length > 0) {
+              setProducts(reloadedProducts);
+              setProductsFromFirestore(true);
+              console.log(`✅ Products reloaded from Firestore after update (${reloadedProducts.length} products)`);
+              return;
+            }
+          } catch (firestoreReloadError) {
+            console.warn('⚠️ Both API and Firestore reload failed (non-critical):', firestoreReloadError.message);
+            // Non-critical - local state is already updated with new price
+          }
+        } catch (reloadError) {
+          console.warn('⚠️ Failed to reload products after update (non-critical):', reloadError.message);
+          // Non-critical - local state is already updated with new price
+        }
+      }
+      
+      if (!saved) {
+        if (apiAvailable) {
+          console.error('❌ Both Firestore client SDK and API failed');
+          showError('Failed to save price. Check console for details.');
+        } else {
+          console.warn('⚠️ Cannot save: Firestore client SDK failed and API not available');
+          showError('Failed to save price. Backend API is not running.');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating price:', error);
+      showError(`Failed to update price: ${error.message || 'Unknown error'}`);
+    }
   };
 
   // Update product (name, category, price)
-  const handleUpdateProduct = (productId, productData) => {
-    setProducts((prevProducts) => {
-      const productIndex = prevProducts.findIndex(p => p.id === productId);
-      if (productIndex === -1) return prevProducts;
-      
-      const oldProduct = prevProducts[productIndex];
-      const categoryChanged = oldProduct.category !== productData.category;
-      const nameChanged = oldProduct.name !== productData.name;
-      
-      // Update product
-      const updatedProduct = {
-        ...oldProduct,
+  const handleUpdateProduct = async (productId, productData) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    const categoryChanged = product.category !== productData.category;
+    const nameChanged = product.name !== productData.name;
+    
+    try {
+      // Update product data
+      const updatedProductData = {
         name: productData.name,
         category: productData.category,
         price: productData.price,
-        // Update image path if name or category changed
         image: (nameChanged || categoryChanged) 
           ? getProductImage(productData.name, productData.category)
-          : oldProduct.image
+          : product.image
       };
       
-      let updatedProducts = [...prevProducts];
-      updatedProducts[productIndex] = updatedProduct;
+      // Update in Firestore
+      await updateProduct(productId, updatedProductData);
       
-      // If category changed, reorder products to maintain category grouping
-      if (categoryChanged) {
-        const categoryOrder = ['Snacks', 'Drinks', 'Condiments', 'Biscuits', 'Candies', 'Canned Goods', 'Noodles'];
+      // Update local state
+      setProducts((prevProducts) => {
+        const productIndex = prevProducts.findIndex(p => p.id === productId);
+        if (productIndex === -1) return prevProducts;
         
-        // Remove product from current position
-        updatedProducts = updatedProducts.filter(p => p.id !== productId);
+        const updatedProduct = {
+          ...prevProducts[productIndex],
+          ...updatedProductData
+        };
         
-        // Find insertion point in new category
-        let insertIndex = updatedProducts.length;
-        for (let i = updatedProducts.length - 1; i >= 0; i--) {
-          if (updatedProducts[i].category === productData.category) {
-            insertIndex = i + 1;
-            break;
+        let updatedProducts = [...prevProducts];
+        updatedProducts[productIndex] = updatedProduct;
+        
+        // If category changed, reorder products
+        if (categoryChanged) {
+          const categoryOrder = ['Snacks', 'Drinks', 'Condiments', 'Biscuits', 'Candies', 'Canned Goods', 'Noodles'];
+          updatedProducts = updatedProducts.filter(p => p.id !== productId);
+          
+          let insertIndex = updatedProducts.length;
+          for (let i = updatedProducts.length - 1; i >= 0; i--) {
+            if (updatedProducts[i].category === productData.category) {
+              insertIndex = i + 1;
+              break;
+            }
           }
-        }
-        
-        // If category not found, find where to insert based on category order
-        if (insertIndex === updatedProducts.length) {
-          const newCategoryIndex = categoryOrder.indexOf(productData.category);
-          if (newCategoryIndex !== -1) {
-            for (let i = 0; i < updatedProducts.length; i++) {
-              const productCategoryIndex = categoryOrder.indexOf(updatedProducts[i].category);
-              if (productCategoryIndex > newCategoryIndex) {
-                insertIndex = i;
-                break;
+          
+          if (insertIndex === updatedProducts.length) {
+            const newCategoryIndex = categoryOrder.indexOf(productData.category);
+            if (newCategoryIndex !== -1) {
+              for (let i = 0; i < updatedProducts.length; i++) {
+                const productCategoryIndex = categoryOrder.indexOf(updatedProducts[i].category);
+                if (productCategoryIndex > newCategoryIndex) {
+                  insertIndex = i;
+                  break;
+                }
               }
             }
           }
+          
+          updatedProducts = [
+            ...updatedProducts.slice(0, insertIndex),
+            updatedProduct,
+            ...updatedProducts.slice(insertIndex)
+          ];
         }
         
-        // Insert product at new position
-        updatedProducts = [
-          ...updatedProducts.slice(0, insertIndex),
-          updatedProduct,
-          ...updatedProducts.slice(insertIndex)
-        ];
-      }
-      
-      // Update localStorage
-      const customProducts = updatedProducts.filter(p => p.id > initialProducts.length);
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(customProducts));
-      
-      // Save edited products (for initial products that have been modified)
-      // Load existing edited products first
-      const savedEditedProducts = localStorage.getItem(EDITED_PRODUCTS_KEY);
-      let existingEditedProducts = {};
-      if (savedEditedProducts) {
-        try {
-          existingEditedProducts = JSON.parse(savedEditedProducts);
-        } catch (error) {
-          console.error('Error loading edited products:', error);
-        }
-      }
-      
-      // Check specifically the product being edited
-      const initialProduct = initialProducts.find(p => p.id === productId);
-      if (initialProduct) {
-        // Check if the edited product matches the initial state
-        const matchesInitial = 
-          updatedProduct.name === initialProduct.name && 
-          updatedProduct.category === initialProduct.category && 
-          updatedProduct.price === initialProduct.price;
-        
-        if (matchesInitial) {
-          // If it matches initial state, remove it from edited products
-          delete existingEditedProducts[productId];
-        } else {
-          // If it doesn't match, save the edit
-          existingEditedProducts[productId] = {
-            name: updatedProduct.name,
-            category: updatedProduct.category,
-            price: updatedProduct.price
-          };
-        }
-      }
-      
-      // Save the updated edited products map
-      localStorage.setItem(EDITED_PRODUCTS_KEY, JSON.stringify(existingEditedProducts));
-      
-      // Save price if changed (for backward compatibility)
-      const priceMap = {};
-      updatedProducts.forEach(product => {
-        const initialProduct = initialProducts.find(p => p.id === product.id);
-        if (initialProduct && product.price !== initialProduct.price) {
-          priceMap[product.id] = product.price;
-        }
+        return updatedProducts;
       });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(priceMap));
       
       // Update cart if item exists
       setCart((prevCart) =>
@@ -407,98 +560,84 @@ function App() {
       if (categoryChanged) {
         setSelectedCategory(productData.category);
       }
-      
-      return updatedProducts;
-    });
+    } catch (error) {
+      console.error('Error updating product:', error);
+      showError('Failed to update product. Please try again.');
+    }
   };
 
   // Add new product
-  const handleAddProduct = (productData) => {
-    setProducts((prevProducts) => {
-      // Check for duplicate product (same name and category)
-      const isDuplicate = prevProducts.some(
-        product => product.name.toLowerCase().trim() === productData.name.toLowerCase().trim() 
-        && product.category === productData.category
-      );
-      
-      if (isDuplicate) {
-        alert(`A product named "${productData.name}" already exists in the ${productData.category} category.`);
-        return prevProducts;
-      }
-      
-      // Find the highest ID and add 1
-      const maxId = prevProducts.reduce((max, product) => 
-        product.id > max ? product.id : max, 0
-      );
-      const newId = maxId + 1;
-      
+  const handleAddProduct = async (productData) => {
+    // Check for duplicate product (same name and category)
+    const isDuplicate = products.some(
+      product => product.name.toLowerCase().trim() === productData.name.toLowerCase().trim() 
+      && product.category === productData.category
+    );
+    
+    if (isDuplicate) {
+      alert(`A product named "${productData.name}" already exists in the ${productData.category} category.`);
+      return;
+    }
+    
+    try {
       // Create new product with image
-      const newProduct = {
-        id: newId,
+      const newProductData = {
         name: productData.name,
         category: productData.category,
         price: productData.price,
         image: getProductImage(productData.name, productData.category)
       };
       
-      // Define category order
+      // Save to Firestore
+      const addedProduct = await addProduct(newProductData);
+      
+      // Update local state
       const categoryOrder = ['Snacks', 'Drinks', 'Condiments', 'Biscuits', 'Candies', 'Canned Goods', 'Noodles'];
-      
-      // Find the insertion point - after the last product of the same category
-      let insertIndex = prevProducts.length;
-      
-      // First, try to find products of the same category
-      let foundSameCategory = false;
-      for (let i = prevProducts.length - 1; i >= 0; i--) {
-        if (prevProducts[i].category === productData.category) {
-          insertIndex = i + 1;
-          foundSameCategory = true;
-          break;
-        }
-      }
-      
-      // If no products of the same category exist, find where to insert based on category order
-      if (!foundSameCategory) {
-        const newCategoryIndex = categoryOrder.indexOf(productData.category);
+      setProducts((prevProducts) => {
+        let insertIndex = prevProducts.length;
         
-        if (newCategoryIndex !== -1) {
-          // Find the first product of a category that comes after this one
-          for (let i = 0; i < prevProducts.length; i++) {
-            const productCategoryIndex = categoryOrder.indexOf(prevProducts[i].category);
-            if (productCategoryIndex > newCategoryIndex) {
-              insertIndex = i;
-              break;
+        // Find insertion point
+        for (let i = prevProducts.length - 1; i >= 0; i--) {
+          if (prevProducts[i].category === productData.category) {
+            insertIndex = i + 1;
+            break;
+          }
+        }
+        
+        if (insertIndex === prevProducts.length) {
+          const newCategoryIndex = categoryOrder.indexOf(productData.category);
+          if (newCategoryIndex !== -1) {
+            for (let i = 0; i < prevProducts.length; i++) {
+              const productCategoryIndex = categoryOrder.indexOf(prevProducts[i].category);
+              if (productCategoryIndex > newCategoryIndex) {
+                insertIndex = i;
+                break;
+              }
             }
           }
         }
-      }
-      
-      // Insert the new product at the correct position
-      const updatedProducts = [
-        ...prevProducts.slice(0, insertIndex),
-        newProduct,
-        ...prevProducts.slice(insertIndex)
-      ];
-      
-      // Save custom products to localStorage
-      const customProducts = updatedProducts.filter(p => p.id > initialProducts.length);
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(customProducts));
+        
+        return [
+          ...prevProducts.slice(0, insertIndex),
+          { ...addedProduct, id: addedProduct.id },
+          ...prevProducts.slice(insertIndex)
+        ];
+      });
       
       // Switch to the product's category
       setSelectedCategory(productData.category);
-      
-      return updatedProducts;
-    });
+    } catch (error) {
+      console.error('Error adding product:', error);
+      showError('Failed to add product. Please try again.');
+    }
   };
 
   // Handle checkout - add cart to purchase history
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
     
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const timestamp = Date.now();
     const purchaseEntry = {
-      id: timestamp,
       date: new Date().toISOString(),
       items: cart.map(item => ({
         id: item.id,
@@ -510,15 +649,18 @@ function App() {
       total: total
     };
     
-    // Add to purchase history
-    const updatedHistory = [purchaseEntry, ...purchaseHistory];
+    // Update local state first (optimistic update - don't wait for Firestore)
+    const tempPurchaseId = `temp-${Date.now()}`;
+    const purchaseWithId = {
+      id: tempPurchaseId,
+      ...purchaseEntry
+    };
+    const updatedHistory = [purchaseWithId, ...purchaseHistory];
     setPurchaseHistory(updatedHistory);
-    localStorage.setItem(PURCHASE_HISTORY_KEY, JSON.stringify(updatedHistory));
     
     // Update session earnings
     const newEarnings = sessionEarnings + total;
     setSessionEarnings(newEarnings);
-    localStorage.setItem(SESSION_EARNINGS_KEY, newEarnings.toString());
     
     // Clear cart
     setCart([]);
@@ -526,6 +668,57 @@ function App() {
     
     // Show checkout confirmation modal
     setIsCheckoutModalOpen(true);
+    
+    // Try to save to Firestore in background (don't block UI)
+    // Try Firestore client SDK first, then fallback to API
+    let saved = false;
+    
+    // Try Firestore client SDK first
+    try {
+      console.log('📤 Attempting to save purchase via Firestore client SDK...');
+      const addedPurchase = await Promise.race([
+        addPurchase(purchaseEntry),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+      ]);
+      console.log('✅ Purchase saved to Firestore! ID:', addedPurchase.id);
+      // Update with real Firestore ID
+      setPurchaseHistory((prevHistory) => {
+        return prevHistory.map(p => 
+          p.id === tempPurchaseId ? { ...p, id: addedPurchase.id } : p
+        );
+      });
+      saved = true;
+    } catch (firestoreError) {
+      console.warn('⚠️ Firestore client SDK failed:', firestoreError.code || firestoreError.message);
+      
+      // Fallback to backend API if available
+      if (apiAvailable) {
+        try {
+          console.log('📤 Attempting to save purchase via backend API (fallback)...');
+          const addedPurchase = await addPurchaseViaAPI(purchaseEntry);
+          console.log('✅ Purchase saved via backend API! ID:', addedPurchase.id);
+          // Update with real Firestore ID
+          setPurchaseHistory((prevHistory) => {
+            return prevHistory.map(p => 
+              p.id === tempPurchaseId ? { ...p, id: addedPurchase.id } : p
+            );
+          });
+          saved = true;
+        } catch (apiError) {
+          console.error('❌ Backend API save also failed:', apiError);
+          showError(`Purchase saved locally but failed to sync: ${apiError.message || 'Check console'}`);
+        }
+      } else {
+        console.error('❌ Firestore save FAILED and API not available');
+        console.error('Error code:', firestoreError.code);
+        console.error('Error message:', firestoreError.message);
+        showError(`Purchase saved locally but failed to sync: ${firestoreError.message || firestoreError.code || 'Check console'}`);
+      }
+    }
+    
+    if (saved) {
+      console.log('✅ Purchase successfully saved to database!');
+    }
   };
   
   // Handle end session - show modal with total earnings
@@ -533,83 +726,87 @@ function App() {
     setIsEndSessionModalOpen(true);
   };
   
-  // Handle reset session - clear session earnings, purchase history, and close modal
-  const handleResetSession = () => {
+  // Handle reset session - save to Firestore, then clear session earnings, purchase history, and close modal
+  const handleResetSession = async () => {
+    // Save session data to Firestore before clearing
+    const sessionData = {
+      startTime: sessionStartTime.toISOString(),
+      endTime: new Date().toISOString(),
+      earnings: sessionEarnings,
+      purchaseCount: purchaseHistory.length,
+      purchaseIds: purchaseHistory.map(p => p.id).filter(id => id && !id.toString().startsWith('temp-')), // Only real Firestore IDs
+      status: 'ended'
+    };
+    
+    console.log('💾 Saving session to Firestore:', sessionData);
+    
+    try {
+      // Try Firestore client SDK first
+      try {
+        await Promise.race([
+          saveSession(sessionData),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+        console.log('✅ Session saved to Firestore successfully!');
+      } catch (firestoreError) {
+        console.warn('⚠️ Firestore client SDK failed, trying backend API...', firestoreError.message);
+        
+        // Fallback to backend API
+        if (apiAvailable) {
+          try {
+            const response = await fetch('http://localhost:3000/api/sessions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(sessionData)
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            console.log('✅ Session saved via backend API:', result);
+          } catch (apiError) {
+            console.error('❌ Backend API also failed:', apiError);
+            showError('Session saved locally but failed to sync to Firestore.');
+          }
+        } else {
+          console.error('❌ Both Firestore and API failed');
+          showError('Session saved locally but failed to sync to Firestore.');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error saving session:', error);
+      showError('Failed to save session. Session data may be lost.');
+    }
+    
+    // Clear session data after saving
     setSessionEarnings(0);
     setPurchaseHistory([]);
+    setSessionStartTime(new Date()); // Start new session
     localStorage.setItem(SESSION_EARNINGS_KEY, '0');
     localStorage.setItem(PURCHASE_HISTORY_KEY, JSON.stringify([]));
+    localStorage.setItem('janet-sari-sari-session-start-time', new Date().toISOString());
     setIsEndSessionModalOpen(false);
   };
 
   // Delete product
-  const handleDeleteProduct = (productId) => {
-    setProducts((prevProducts) => {
-      const productToDelete = prevProducts.find(p => p.id === productId);
-      if (!productToDelete) return prevProducts;
+  const handleDeleteProduct = async (productId) => {
+    try {
+      // Delete from Firestore
+      await deleteProduct(productId);
       
-      const updatedProducts = prevProducts.filter(product => product.id !== productId);
-      
-      // Save deleted product ID to localStorage (permanent deletion)
-      const savedDeletedProducts = localStorage.getItem(DELETED_PRODUCTS_KEY);
-      let deletedProductIds = [];
-      if (savedDeletedProducts) {
-        try {
-          deletedProductIds = JSON.parse(savedDeletedProducts);
-        } catch (error) {
-          console.error('Error loading deleted products:', error);
-        }
-      }
-      if (!deletedProductIds.includes(productId)) {
-        deletedProductIds.push(productId);
-        localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify(deletedProductIds));
-      }
-      
-      // Remove from custom products if it was a custom product
-      const savedCustomProducts = localStorage.getItem(PRODUCTS_STORAGE_KEY);
-      if (savedCustomProducts) {
-        try {
-          const customProducts = JSON.parse(savedCustomProducts);
-          const filteredCustomProducts = customProducts.filter(p => p.id !== productId);
-          localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(filteredCustomProducts));
-        } catch (error) {
-          console.error('Error updating custom products:', error);
-        }
-      }
-      
-      // Also update the current custom products list
-      const customProducts = updatedProducts.filter(p => p.id > initialProducts.length);
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(customProducts));
-      
-      // Remove from edited products if it was edited
-      const savedEditedProducts = localStorage.getItem(EDITED_PRODUCTS_KEY);
-      if (savedEditedProducts) {
-        try {
-          const editedProducts = JSON.parse(savedEditedProducts);
-          delete editedProducts[productId];
-          localStorage.setItem(EDITED_PRODUCTS_KEY, JSON.stringify(editedProducts));
-        } catch (error) {
-          console.error('Error removing from edited products:', error);
-        }
-      }
+      // Update local state
+      setProducts((prevProducts) => prevProducts.filter(product => product.id !== productId));
       
       // Remove from cart if it exists there
       setCart((prevCart) => prevCart.filter(item => item.id !== productId));
-      
-      // Remove price from saved prices if it exists
-      const savedPrices = localStorage.getItem(STORAGE_KEY);
-      if (savedPrices) {
-        try {
-          const priceMap = JSON.parse(savedPrices);
-          delete priceMap[productId];
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(priceMap));
-        } catch (error) {
-          console.error('Error updating prices:', error);
-        }
-      }
-      
-      return updatedProducts;
-    });
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      showError('Failed to delete product. Please try again.');
+    }
   };
 
   return (
@@ -634,6 +831,7 @@ function App() {
             onToggleCart={() => setIsCartOpen(!isCartOpen)}
             onToggleHistory={() => setIsHistoryOpen(true)}
             purchaseHistoryCount={purchaseHistory.length}
+            onError={showError}
           />
           <div className="flex">
             {/* Category Sidebar - Desktop Only */}
@@ -653,6 +851,7 @@ function App() {
                 onDeleteProduct={handleDeleteProduct}
                 onAddProductClick={() => setIsAddProductModalOpen(true)}
                 categories={categories}
+                isLoading={isLoadingProducts}
               />
             </main>
           </div>
@@ -687,6 +886,12 @@ function App() {
       <CheckoutModal
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
+      />
+      
+      {/* Error Notification */}
+      <ErrorNotification
+        error={error}
+        onClose={() => setError(null)}
       />
     </div>
   );

@@ -1,0 +1,60 @@
+═══════════════════════════════════════════════════════════════
+   🚀 QUICK START: Connect Your App to Firebase
+═══════════════════════════════════════════════════════════════
+
+Follow these 6 steps (takes about 15-20 minutes total):
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  STEP 1: Get Firebase Web App Config (5 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Go to: https://console.firebase.google.com/
+2. Click on "Mamas Database" project
+3. Click ⚙️ Gear Icon → "Project Settings"
+4. Scroll to "Your apps" section
+5. Click "Add app" → Web icon (</>) if no web app exists
+6. Copy the firebaseConfig values (apiKey, projectId, etc.)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  STEP 2: Create .env File (2 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Create a file named ".env" in your project root
+2. Copy the template from STEP_BY_STEP_GUIDE.md
+3. Paste your Firebase values from Step 1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  STEP 3: Get Admin SDK Credentials (5 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. In Firebase Console → Project Settings → "Service Accounts" tab
+2. Click "Generate New Private Key"
+3. Download the JSON file
+4. Copy entire JSON content
+5. Add to .env file: FIREBASE_SERVICE_ACCOUNT_KEY='[paste JSON]'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  STEP 4: Configure Firestore Rules (2 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Firebase Console → Firestore Database → "Rules" tab
+2. Replace with rules from STEP_BY_STEP_GUIDE.md
+3. Click "Publish"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  STEP 5: Test Connection (3 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Terminal 1:
+  npm run server
+
+Terminal 2:
+  npm run dev
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 For detailed instructions, see: STEP_BY_STEP_GUIDE.md
+
+═══════════════════════════════════════════════════════════════
+
+

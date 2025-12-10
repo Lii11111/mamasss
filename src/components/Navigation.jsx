@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchChange, cart, onToggleCart, onToggleHistory, purchaseHistoryCount }) {
+function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchChange, cart, onToggleCart, onToggleHistory, purchaseHistoryCount, onError }) {
   const categories = ['All', 'Snacks', 'Drinks', 'Condiments', 'Biscuits', 'Candies', 'Canned Goods', 'Noodles'];
   const [isListening, setIsListening] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -28,7 +28,11 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
       };
 
       recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
+        const errorMessage = 'Speech recognition error: ' + event.error;
+        if (onError) {
+          onError(errorMessage);
+        }
+        console.error(errorMessage);
         setIsListening(false);
       };
 
@@ -60,7 +64,11 @@ function Navigation({ selectedCategory, onCategoryChange, searchTerm, onSearchCh
 
   const handleVoiceSearch = () => {
     if (!recognitionRef.current) {
-      alert('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
+      const errorMessage = 'Speech recognition is not supported in your browser. Please use Chrome or Edge.';
+      if (onError) {
+        onError(errorMessage);
+      }
+      alert(errorMessage);
       return;
     }
 

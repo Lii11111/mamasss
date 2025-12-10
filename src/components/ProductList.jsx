@@ -1,6 +1,6 @@
 import ProductCard from './ProductCard';
 
-function ProductList({ products, selectedCategory, onAddToCart, onUpdatePrice, onUpdateProduct, onDeleteProduct, onAddProductClick, categories }) {
+function ProductList({ products, selectedCategory, onAddToCart, onUpdatePrice, onUpdateProduct, onDeleteProduct, onAddProductClick, categories, isLoading }) {
   // Category icons mapping
   const categoryIcons = {
     'All': '📦',
@@ -12,6 +12,15 @@ function ProductList({ products, selectedCategory, onAddToCart, onUpdatePrice, o
     'Canned Goods': '🥫',
     'Noodles': '🍜'
   };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-12">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+        <p className="text-gray-500 text-lg">Loading products...</p>
+      </div>
+    );
+  }
 
   if (products.length === 0) {
     return (

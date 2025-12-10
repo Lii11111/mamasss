@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-function SearchBar({ searchTerm, onSearchChange }) {
+function SearchBar({ searchTerm, onSearchChange, onError }) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
 
@@ -25,7 +25,11 @@ function SearchBar({ searchTerm, onSearchChange }) {
       };
 
       recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
+        const errorMessage = 'Speech recognition error: ' + event.error;
+        if (onError) {
+          onError(errorMessage);
+        }
+        console.error(errorMessage);
         setIsListening(false);
       };
 
@@ -45,7 +49,11 @@ function SearchBar({ searchTerm, onSearchChange }) {
 
   const handleVoiceSearch = () => {
     if (!recognitionRef.current) {
-      alert('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
+      const errorMessage = 'Speech recognition is not supported in your browser. Please use Chrome or Edge.';
+      if (onError) {
+        onError(errorMessage);
+      }
+      alert(errorMessage);
       return;
     }
 
