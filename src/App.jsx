@@ -678,7 +678,7 @@ function App() {
       console.log('📤 Attempting to save purchase via Firestore client SDK...');
       const addedPurchase = await Promise.race([
         addPurchase(purchaseEntry),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout (20s)')), 20000))
       ]);
       console.log('✅ Purchase saved to Firestore! ID:', addedPurchase.id);
       // Update with real Firestore ID
@@ -745,9 +745,10 @@ function App() {
     // Try Firestore client SDK first (should work from mobile)
     try {
       console.log('📤 Attempting to save session via Firestore client SDK...');
+      // Increase timeout for mobile/slow networks (20 seconds)
       await Promise.race([
         saveSession(sessionData),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout (10s)')), 10000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout (20s)')), 20000))
       ]);
       console.log('✅ Session saved to Firestore successfully!');
       saved = true;

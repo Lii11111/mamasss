@@ -193,12 +193,25 @@ export const addPurchase = async (purchaseData) => {
       createdAt: new Date().toISOString()
     });
     
+    console.log('✅ Purchase document created in Firestore:', docRef.id);
     return {
       id: docRef.id,
       ...purchaseData
     };
   } catch (error) {
-    console.error('Error adding purchase:', error);
+    console.error('Error adding purchase to Firestore:', {
+      code: error.code,
+      message: error.message,
+      fullError: error
+    });
+    
+    // Provide more helpful error messages
+    if (error.code === 'permission-denied') {
+      throw new Error('Permission denied: Check Firestore security rules for "purchases" collection');
+    } else if (error.code === 'unavailable') {
+      throw new Error('Firestore unavailable: Check your internet connection');
+    }
+    
     throw error;
   }
 };
