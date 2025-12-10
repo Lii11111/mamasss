@@ -796,14 +796,42 @@ function App() {
       }
     }
     
-    // Show error if both methods failed
+    // Save session data to localStorage as backup if Firestore fails
     if (!saved) {
+      try {
+        // Get existing pending sessions
+        const existingPending = localStorage.getItem(PENDING_SESSIONS_KEY);
+        const pendingSessions = existingPending ? JSON.parse(existingPending) : [];
+        
+        // Add this session to pending list
+        pendingSessions.push({
+          ...sessionData,
+          failedAt: new Date().toISOString(),
+          retryCount: 0
+        });
+        
+        // Save to localStorage (max 10 pending sessions)
+        const sessionsToKeep = pendingSessions.slice(-10);
+        localStorage.setItem(PENDING_SESSIONS_KEY, JSON.stringify(sessionsToKeep));
+        
+        console.log('💾 Session saved to localStorage as backup (will retry later)');
+        console.log(`📋 Total pending sessions: ${sessionsToKeep.length}`);
+      } catch (storageError) {
+        console.warn('⚠️ Failed to save session to localStorage backup:', storageError);
+      }
+      
       const errorMsg = 'Session saved locally but failed to sync to Firestore. ';
       const details = apiAvailable 
-        ? 'Both Firestore and backend API failed. Check console for details.'
-        : 'Firestore failed and backend API is not reachable. Check your network connection.';
+        ? 'Both Firestore and backend API failed. Session saved as backup.'
+        : 'Firestore failed. Session saved as backup. Check network/Firestore rules.';
       console.error('❌ Failed to save session to Firestore:', errorMsg + details);
-      showError(errorMsg + details);
+      
+      // Show warning but don't block - session data is in localStorage
+      setTimeout(() => {
+        showError('Session saved locally (backup). Will retry syncing to Firestore later.');
+      }, 100);
+    } else {
+      console.log('✅ Session successfully saved to Firestore!');
     }
     
     // Clear session data after saving
