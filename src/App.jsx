@@ -636,35 +636,51 @@ function App() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     
-    const total = cart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
-    const purchaseEntry = {
-      date: new Date().toISOString(),
-      items: cart.map(item => {
-        // Build item object, only include fields that are not undefined
-        const cartItem = {
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity
+    // Validate and clean cart items before checkout
+    const validatedItems = cart
+      .filter(item => {
+        // Filter out items with missing required fields
+        return item && 
+               item.id !== undefined && item.id !== null && 
+               item.name !== undefined && item.name !== null &&
+               item.price !== undefined && item.price !== null &&
+               item.quantity !== undefined && item.quantity !== null &&
+               item.quantity > 0;
+      })
+      .map(item => {
+        // Build clean item object with only defined values
+        const cleanItem = {
+          id: String(item.id), // Ensure id is string
+          name: String(item.name), // Ensure name is string
+          price: Number(item.price), // Ensure price is number
+          quantity: Number(item.quantity) // Ensure quantity is number
         };
-        // Only add image if it exists and is not undefined
-        if (item.image) {
-          cartItem.image = item.image;
+        
+        // Only add optional fields if they exist and are not undefined/null
+        if (item.image !== undefined && item.image !== null && item.image !== '') {
+          cleanItem.image = String(item.image);
         }
-        // Only add category if it exists
-        if (item.category) {
-          cartItem.category = item.category;
+        if (item.category !== undefined && item.category !== null && item.category !== '') {
+          cleanItem.category = String(item.category);
         }
-        return cartItem;
-      }).filter(item => item.id && item.name && item.price !== undefined && item.quantity !== undefined), // Filter out invalid items
-      total: total
-    };
+        
+        return cleanItem;
+      });
     
-    // Validate purchase entry before proceeding
-    if (!purchaseEntry.items || purchaseEntry.items.length === 0) {
+    // Validate we have valid items
+    if (!validatedItems || validatedItems.length === 0) {
       showError('Cannot checkout: Cart is empty or contains invalid items');
       return;
     }
+    
+    const total = validatedItems.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
+    const purchaseEntry = {
+      date: new Date().toISOString(),
+      items: validatedItems,
+      total: Number(total) // Ensure total is number
+    };
+    
+    console.log('📦 Prepared purchase entry:', JSON.stringify(purchaseEntry, null, 2));
     
     // Update local state first (optimistic update - don't wait for Firestore)
     const tempPurchaseId = `temp-${Date.now()}`;

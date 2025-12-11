@@ -235,28 +235,41 @@ export const addPurchase = async (purchaseData) => {
   try {
     const purchasesRef = collection(db, COLLECTIONS.PURCHASES);
     
-    // Clean the data - remove undefined values (Firestore doesn't allow undefined)
+    // Deep clean the data - remove undefined, null for optional fields, validate types
     const cleanedData = removeUndefined({
-      ...purchaseData,
       date: purchaseData.date || new Date().toISOString(),
+      items: (purchaseData.items || []).map(item => {
+        const cleanedItem = removeUndefined({
+          id: item.id !== undefined && item.id !== null ? String(item.id) : undefined,
+          name: item.name !== undefined && item.name !== null ? String(item.name) : undefined,
+          price: item.price !== undefined && item.price !== null ? Number(item.price) : undefined,
+          quantity: item.quantity !== undefined && item.quantity !== null ? Number(item.quantity) : undefined,
+          image: item.image !== undefined && item.image !== null && item.image !== '' ? String(item.image) : undefined,
+          category: item.category !== undefined && item.category !== null && item.category !== '' ? String(item.category) : undefined
+        });
+        return cleanedItem;
+      }).filter(item => item.id && item.name && item.price !== undefined && item.quantity !== undefined),
+      total: purchaseData.total !== undefined && purchaseData.total !== null ? Number(purchaseData.total) : undefined,
       createdAt: new Date().toISOString()
     });
     
-    // Log what we're trying to write
-    console.log('📝 Writing to Firestore purchases collection:', {
-      itemCount: cleanedData.items?.length || 0,
-      total: cleanedData.total,
-      date: cleanedData.date
-    });
-    
-    // Validate required fields
+    // Final validation
     if (!cleanedData.items || !Array.isArray(cleanedData.items) || cleanedData.items.length === 0) {
-      throw new Error('Purchase must have at least one item');
+      throw new Error('Purchase must have at least one valid item');
     }
     
-    if (cleanedData.total === undefined || cleanedData.total === null) {
-      throw new Error('Purchase must have a total');
+    if (cleanedData.total === undefined || cleanedData.total === null || isNaN(cleanedData.total)) {
+      throw new Error('Purchase must have a valid total');
     }
+    
+    // Log what we're trying to write (for debugging)
+    console.log('📝 Writing to Firestore purchases collection:', {
+      itemCount: cleanedData.items.length,
+      total: cleanedData.total,
+      date: cleanedData.date,
+      sampleItem: cleanedData.items[0]
+    });
+    console.log('📝 Full cleaned data:', JSON.stringify(cleanedData, null, 2));
     
     const docRef = await addDoc(purchasesRef, cleanedData);
     
