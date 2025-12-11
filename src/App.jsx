@@ -738,15 +738,44 @@ function App() {
       } else {
         console.error('❌ Firestore save FAILED and API not available');
         
-        // Show user-friendly error
-        let errorMsg = 'Purchase saved locally but failed to sync to database. ';
-        if (firestoreError.code === 'permission-denied') {
-          errorMsg += 'Permission denied - check Firestore security rules!';
-        } else if (firestoreError.code === 'unavailable' || firestoreError.message?.includes('timeout')) {
-          errorMsg += 'Network timeout - check your internet connection.';
-        } else {
-          errorMsg += firestoreError.message || firestoreError.code || 'See console for details.';
+        // Save to localStorage as backup
+        try {
+          const existingBackup = localStorage.getItem(PURCHASE_HISTORY_KEY);
+          const backupHistory = existingBackup ? JSON.parse(existingBackup) : [];
+          const failedPurchases = backupHistory.filter(p => p.id?.startsWith('temp-') || p.syncFailed);
+          const successfulPurchases = backupHistory.filter(p => !p.id?.startsWith('temp-') && !p.syncFailed);
+          
+          // Add new purchase with syncFailed flag
+          const purchaseToBackup = {
+            ...purchaseWithId,
+            syncFailed: true,
+            syncError: firestoreError.code || firestoreError.message,
+            syncAttemptedAt: new Date().toISOString()
+          };
+          
+          localStorage.setItem(PURCHASE_HISTORY_KEY, JSON.stringify([
+            purchaseToBackup,
+            ...successfulPurchases,
+            ...failedPurchases
+          ]));
+          
+          console.log('💾 Purchase saved to localStorage as backup (will retry on next sync)');
+        } catch (backupError) {
+          console.error('Failed to save purchase to localStorage backup:', backupError);
         }
+        
+        // Show user-friendly error with specific details
+        let errorMsg = '⚠️ Purchase saved locally but failed to sync to database. ';
+        if (firestoreError.code === 'permission-denied') {
+          errorMsg += 'PERMISSION DENIED - Check Firestore security rules! Error code: permission-denied';
+        } else if (firestoreError.code === 'unavailable') {
+          errorMsg += 'NETWORK UNAVAILABLE - Check internet connection. Error code: unavailable';
+        } else if (firestoreError.message?.includes('timeout')) {
+          errorMsg += 'TIMEOUT - Firestore is taking too long. Error: timeout';
+        } else {
+          errorMsg += `Error: ${firestoreError.code || firestoreError.message || 'Unknown error'}`;
+        }
+        errorMsg += ' | Check console (F12) for details. Purchase is saved locally.';
         
         showError(errorMsg);
       }
@@ -754,6 +783,15 @@ function App() {
     
     if (saved) {
       console.log('✅ Purchase successfully saved to database!');
+      // Also save to localStorage for redundancy
+      try {
+        const existingBackup = localStorage.getItem(PURCHASE_HISTORY_KEY);
+        const backupHistory = existingBackup ? JSON.parse(existingBackup) : [];
+        const updatedBackup = [purchaseWithId, ...backupHistory.filter(p => p.id !== tempPurchaseId)];
+        localStorage.setItem(PURCHASE_HISTORY_KEY, JSON.stringify(updatedBackup));
+      } catch (backupError) {
+        console.warn('Failed to save purchase to localStorage backup:', backupError);
+      }
     } else {
       console.warn('⚠️ Purchase saved locally only - not synced to database');
     }

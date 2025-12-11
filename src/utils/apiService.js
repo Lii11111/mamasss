@@ -7,22 +7,22 @@ export const getAPIBaseURL = () => {
   }
   
   const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
   
   // If localhost (same device), use localhost
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:3000/api';
   }
   
-  // If on Vercel, backend API is not available (unless deployed as serverless functions)
-  // Return null to disable API fallback - rely on Firestore client SDK only
+  // If on Vercel, use same domain (serverless functions are at /api/*)
+  // Serverless functions are automatically available at the same domain
   if (hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
-    console.log('🌐 Vercel deployment detected - API fallback disabled. Using Firestore client SDK only.');
-    return null; // API not available on Vercel
+    console.log('🌐 Vercel deployment detected - Using serverless functions API at same domain');
+    return `${protocol}//${hostname}/api`; // Serverless functions at /api/*
   }
   
   // If accessing from mobile/remote, try to use same host but different port
   // This assumes frontend and backend are on same network
-  const protocol = window.location.protocol;
   const baseUrl = `${protocol}//${hostname}:3000/api`;
   
   return baseUrl;

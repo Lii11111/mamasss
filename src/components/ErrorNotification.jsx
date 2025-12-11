@@ -3,9 +3,15 @@ import { useState, useEffect } from 'react';
 function ErrorNotification({ error, onClose }) {
   useEffect(() => {
     if (error) {
+      // Show error longer for important sync failures (15 seconds instead of 5)
+      const isSyncError = error.toLowerCase().includes('failed to sync') || 
+                         error.toLowerCase().includes('permission denied') ||
+                         error.toLowerCase().includes('timeout');
+      const duration = isSyncError ? 15000 : 5000;
+      
       const timer = setTimeout(() => {
         onClose();
-      }, 5000); // Auto-close after 5 seconds
+      }, duration);
 
       return () => clearTimeout(timer);
     }
@@ -13,9 +19,13 @@ function ErrorNotification({ error, onClose }) {
 
   if (!error) return null;
 
+  const isSyncError = error?.toLowerCase().includes('failed to sync') || 
+                     error?.toLowerCase().includes('permission denied') ||
+                     error?.toLowerCase().includes('timeout');
+  
   return (
     <div className="fixed top-20 right-4 z-[100] animate-slide-in-right">
-      <div className="bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-4 max-w-md">
+      <div className={`${isSyncError ? 'bg-red-600 border-2 border-red-800' : 'bg-red-500'} text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-4 max-w-lg ${isSyncError ? 'ring-4 ring-red-300' : ''}`}>
         <div className="flex-shrink-0">
           <svg
             className="w-6 h-6"
@@ -32,8 +42,8 @@ function ErrorNotification({ error, onClose }) {
           </svg>
         </div>
         <div className="flex-1">
-          <p className="font-semibold">Error</p>
-          <p className="text-sm">{error}</p>
+          <p className="font-bold text-base">{isSyncError ? '⚠️ Sync Error' : 'Error'}</p>
+          <p className={`${isSyncError ? 'text-sm font-medium mt-1' : 'text-sm'} break-words`}>{error}</p>
         </div>
         <button
           onClick={onClose}

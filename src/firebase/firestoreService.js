@@ -184,9 +184,43 @@ export const subscribeToProducts = (callback) => {
 /**
  * Add a purchase/checkout to history
  */
+/**
+ * Test if Firestore write is allowed (quick test before actual write)
+ */
+export const testFirestoreWrite = async () => {
+  try {
+    const testRef = collection(db, COLLECTIONS.PURCHASES);
+    // Try to add a test document and immediately delete it
+    const testDoc = await addDoc(testRef, {
+      _test: true,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Delete the test document immediately
+    await deleteDoc(doc(db, COLLECTIONS.PURCHASES, testDoc.id));
+    
+    return { success: true, message: 'Write permissions OK' };
+  } catch (error) {
+    return {
+      success: false,
+      code: error.code,
+      message: error.message,
+      error: error
+    };
+  }
+};
+
 export const addPurchase = async (purchaseData) => {
   try {
     const purchasesRef = collection(db, COLLECTIONS.PURCHASES);
+    
+    // Log what we're trying to write
+    console.log('📝 Writing to Firestore purchases collection:', {
+      itemCount: purchaseData.items?.length || 0,
+      total: purchaseData.total,
+      date: purchaseData.date
+    });
+    
     const docRef = await addDoc(purchasesRef, {
       ...purchaseData,
       date: new Date().toISOString(),
@@ -199,19 +233,31 @@ export const addPurchase = async (purchaseData) => {
       ...purchaseData
     };
   } catch (error) {
-    console.error('Error adding purchase to Firestore:', {
+    console.error('❌ Error adding purchase to Firestore:', {
       code: error.code,
       message: error.message,
+      name: error.name,
+      stack: error.stack,
       fullError: error
     });
     
     // Provide more helpful error messages
     if (error.code === 'permission-denied') {
-      throw new Error('Permission denied: Check Firestore security rules for "purchases" collection');
+      const permissionError = new Error('PERMISSION DENIED: Firestore security rules are blocking writes to "purchases" collection. Check Firebase Console → Firestore → Rules.');
+      permissionError.code = 'permission-denied';
+      throw permissionError;
     } else if (error.code === 'unavailable') {
-      throw new Error('Firestore unavailable: Check your internet connection');
+      const unavailableError = new Error('FIRESTORE UNAVAILABLE: Check your internet connection and try again.');
+      unavailableError.code = 'unavailable';
+      throw unavailableError;
+    } else if (error.code === 'deadline-exceeded') {
+      const timeoutError = new Error('TIMEOUT: Firestore request took too long. Check your internet connection.');
+      timeoutError.code = 'deadline-exceeded';
+      throw timeoutError;
     }
     
+    // Preserve error code for better error handling
+    error.code = error.code || 'unknown';
     throw error;
   }
 };
