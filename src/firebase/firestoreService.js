@@ -210,27 +210,60 @@ export const testFirestoreWrite = async () => {
   }
 };
 
+/**
+ * Remove undefined values from an object (Firestore doesn't allow undefined)
+ */
+const removeUndefined = (obj) => {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefined(item));
+  }
+  
+  const cleaned = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = removeUndefined(value);
+    }
+  }
+  return cleaned;
+};
+
 export const addPurchase = async (purchaseData) => {
   try {
     const purchasesRef = collection(db, COLLECTIONS.PURCHASES);
     
-    // Log what we're trying to write
-    console.log('📝 Writing to Firestore purchases collection:', {
-      itemCount: purchaseData.items?.length || 0,
-      total: purchaseData.total,
-      date: purchaseData.date
-    });
-    
-    const docRef = await addDoc(purchasesRef, {
+    // Clean the data - remove undefined values (Firestore doesn't allow undefined)
+    const cleanedData = removeUndefined({
       ...purchaseData,
-      date: new Date().toISOString(),
+      date: purchaseData.date || new Date().toISOString(),
       createdAt: new Date().toISOString()
     });
+    
+    // Log what we're trying to write
+    console.log('📝 Writing to Firestore purchases collection:', {
+      itemCount: cleanedData.items?.length || 0,
+      total: cleanedData.total,
+      date: cleanedData.date
+    });
+    
+    // Validate required fields
+    if (!cleanedData.items || !Array.isArray(cleanedData.items) || cleanedData.items.length === 0) {
+      throw new Error('Purchase must have at least one item');
+    }
+    
+    if (cleanedData.total === undefined || cleanedData.total === null) {
+      throw new Error('Purchase must have a total');
+    }
+    
+    const docRef = await addDoc(purchasesRef, cleanedData);
     
     console.log('✅ Purchase document created in Firestore:', docRef.id);
     return {
       id: docRef.id,
-      ...purchaseData
+      ...cleanedData
     };
   } catch (error) {
     console.error('❌ Error adding purchase to Firestore:', {
@@ -254,6 +287,11 @@ export const addPurchase = async (purchaseData) => {
       const timeoutError = new Error('TIMEOUT: Firestore request took too long. Check your internet connection.');
       timeoutError.code = 'deadline-exceeded';
       throw timeoutError;
+    } else if (error.message && error.message.includes('undefined')) {
+      // More specific error for undefined values
+      const undefinedError = new Error('Invalid data: Some fields have undefined values. Please check cart items have all required fields (id, name, price, quantity).');
+      undefinedError.code = 'invalid-data';
+      throw undefinedError;
     }
     
     // Preserve error code for better error handling

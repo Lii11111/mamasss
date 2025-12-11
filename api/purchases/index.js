@@ -30,17 +30,43 @@ export default async function handler(req, res) {
 
     // POST /api/purchases - Create a new purchase (checkout)
     if (req.method === 'POST') {
-      const purchaseData = {
-        ...req.body,
-        date: new Date().toISOString(),
-        createdAt: new Date().toISOString()
+      // Remove undefined values (Firestore doesn't allow undefined)
+      const removeUndefined = (obj) => {
+        if (obj === null || typeof obj !== 'object') {
+          return obj;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(item => removeUndefined(item)).filter(item => item !== undefined);
+        }
+        const cleaned = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = removeUndefined(value);
+          }
+        }
+        return cleaned;
       };
       
-      const docRef = await db.collection('purchases').add(purchaseData);
+      const cleanedData = removeUndefined({
+        ...req.body,
+        date: req.body.date || new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      });
+      
+      // Validate required fields
+      if (!cleanedData.items || !Array.isArray(cleanedData.items) || cleanedData.items.length === 0) {
+        return res.status(400).json({ error: 'Purchase must have at least one item' });
+      }
+      
+      if (cleanedData.total === undefined || cleanedData.total === null) {
+        return res.status(400).json({ error: 'Purchase must have a total' });
+      }
+      
+      const docRef = await db.collection('purchases').add(cleanedData);
       
       return res.status(201).json({
         id: docRef.id,
-        ...purchaseData
+        ...cleanedData
       });
     }
 

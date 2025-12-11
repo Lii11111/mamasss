@@ -636,18 +636,35 @@ function App() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     
-    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const total = cart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
     const purchaseEntry = {
       date: new Date().toISOString(),
-      items: cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        image: item.image
-      })),
+      items: cart.map(item => {
+        // Build item object, only include fields that are not undefined
+        const cartItem = {
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        };
+        // Only add image if it exists and is not undefined
+        if (item.image) {
+          cartItem.image = item.image;
+        }
+        // Only add category if it exists
+        if (item.category) {
+          cartItem.category = item.category;
+        }
+        return cartItem;
+      }).filter(item => item.id && item.name && item.price !== undefined && item.quantity !== undefined), // Filter out invalid items
       total: total
     };
+    
+    // Validate purchase entry before proceeding
+    if (!purchaseEntry.items || purchaseEntry.items.length === 0) {
+      showError('Cannot checkout: Cart is empty or contains invalid items');
+      return;
+    }
     
     // Update local state first (optimistic update - don't wait for Firestore)
     const tempPurchaseId = `temp-${Date.now()}`;
