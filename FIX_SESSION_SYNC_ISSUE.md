@@ -69,3 +69,4 @@ If Firestore client SDK doesn't work on mobile, you can:
 
 **The app will still work even if session sync fails!** Purchases are saved separately and won't be affected.
 
+

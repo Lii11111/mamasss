@@ -95,3 +95,4 @@ products Collection
 **Answer: No folders/collections are created when you edit a price. Only the existing product document is updated!** ✅
 
 
+

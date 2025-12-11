@@ -171,3 +171,4 @@ git log --oneline -5  # Last 5 commits
 - Screenshot of Vercel environment variables
 - Firestore security rules
 
+

@@ -676,10 +676,13 @@ function App() {
     // Try Firestore client SDK first
     try {
       console.log('📤 Attempting to save purchase via Firestore client SDK...');
+      console.log('📦 Purchase data:', purchaseEntry);
+      
       const addedPurchase = await Promise.race([
         addPurchase(purchaseEntry),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout (20s)')), 20000))
       ]);
+      
       console.log('✅ Purchase saved to Firestore! ID:', addedPurchase.id);
       // Update with real Firestore ID
       setPurchaseHistory((prevHistory) => {
@@ -689,13 +692,28 @@ function App() {
       });
       saved = true;
     } catch (firestoreError) {
-      console.warn('⚠️ Firestore client SDK failed:', firestoreError.code || firestoreError.message);
+      console.error('❌ Firestore client SDK failed to save purchase:');
+      console.error('   Error code:', firestoreError.code);
+      console.error('   Error message:', firestoreError.message);
+      console.error('   Full error:', firestoreError);
+      
+      // Provide specific error messages
+      if (firestoreError.code === 'permission-denied') {
+        console.error('🔒 PERMISSION DENIED: Check Firestore security rules for "purchases" collection!');
+        console.error('   Rules should allow: allow read, write: if true;');
+      } else if (firestoreError.code === 'unavailable' || firestoreError.message?.includes('timeout')) {
+        console.error('⏱️ TIMEOUT or UNAVAILABLE: Firestore is taking too long or unavailable');
+        console.error('   This could be due to slow network or Firestore being down');
+      }
       
       // Fallback to backend API if available
       if (apiAvailable) {
         try {
           console.log('📤 Attempting to save purchase via backend API (fallback)...');
-          const addedPurchase = await addPurchaseViaAPI(purchaseEntry);
+          const addedPurchase = await Promise.race([
+            addPurchaseViaAPI(purchaseEntry),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('API timeout (10s)')), 10000))
+          ]);
           console.log('✅ Purchase saved via backend API! ID:', addedPurchase.id);
           // Update with real Firestore ID
           setPurchaseHistory((prevHistory) => {
@@ -706,18 +724,38 @@ function App() {
           saved = true;
         } catch (apiError) {
           console.error('❌ Backend API save also failed:', apiError);
-          showError(`Purchase saved locally but failed to sync: ${apiError.message || 'Check console'}`);
+          console.error('   API error details:', {
+            message: apiError.message,
+            stack: apiError.stack
+          });
+          
+          // Show user-friendly error
+          const errorMsg = firestoreError.code === 'permission-denied' 
+            ? 'Permission denied: Check Firestore security rules!'
+            : firestoreError.message || apiError.message || 'Check console for details';
+          showError(`Purchase saved locally but failed to sync: ${errorMsg}`);
         }
       } else {
         console.error('❌ Firestore save FAILED and API not available');
-        console.error('Error code:', firestoreError.code);
-        console.error('Error message:', firestoreError.message);
-        showError(`Purchase saved locally but failed to sync: ${firestoreError.message || firestoreError.code || 'Check console'}`);
+        
+        // Show user-friendly error
+        let errorMsg = 'Purchase saved locally but failed to sync to database. ';
+        if (firestoreError.code === 'permission-denied') {
+          errorMsg += 'Permission denied - check Firestore security rules!';
+        } else if (firestoreError.code === 'unavailable' || firestoreError.message?.includes('timeout')) {
+          errorMsg += 'Network timeout - check your internet connection.';
+        } else {
+          errorMsg += firestoreError.message || firestoreError.code || 'See console for details.';
+        }
+        
+        showError(errorMsg);
       }
     }
     
     if (saved) {
       console.log('✅ Purchase successfully saved to database!');
+    } else {
+      console.warn('⚠️ Purchase saved locally only - not synced to database');
     }
   };
   

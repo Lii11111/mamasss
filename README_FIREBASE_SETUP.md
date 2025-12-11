@@ -166,3 +166,4 @@ fetch('http://localhost:3000/api/products/batch', {
 - For production, configure CORS to only allow your frontend domain
 
 
+

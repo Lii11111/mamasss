@@ -52,3 +52,4 @@ In Firebase Console:
 If rules still don't work, we can use the Express backend API which uses Admin SDK (bypasses rules).
 
 
+

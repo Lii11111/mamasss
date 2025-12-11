@@ -104,3 +104,4 @@ Click **"Publish"** after updating rules!
 
 The app will save sessions to localStorage as backup if Firestore fails!
 
+
